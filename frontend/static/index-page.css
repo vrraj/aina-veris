@@ -1,0 +1,443 @@
+/* Index Page Button Styles - AxioLex UI Style Guide */
+#openSearchBtn,
+#openDebugBtn,
+#openListDocsBtn,
+#openChatBtn,
+#openPromptRegistryBtn,
+#openToolRegistryBtn,
+#openDomainEmbeddingConfigBtn,
+#openBatchUploadBtn,
+#openRetrievalEvalsBtn,
+#openIngestionBtn,
+#pdfIndexBtn,
+#mwIndexBtn,
+#htmlIndexBtn,
+#fetchDebugBtn,
+#downloadBtn,
+#fetchPreviewBtn,
+#saveBtn,
+#reloadBtn,
+#reloadCacheBtn,
+#applyActiveDomainBtn,
+#generateJsonBtn,
+#processBtn,
+#viewSampleBtn,
+#copySampleBtn,
+#downloadResultsBtn,
+#clearResultsBtn,
+#copyJsonBtn,
+#downloadJsonBtn,
+#useThisConfigBtn,
+#openDeleteIndexBtn,
+button[type="submit"],
+a[href^="/"] {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    border: none;
+    background-color: #f5f3ed; /* beige-bg */
+    color: #111111; /* primary-black */
+    text-decoration: none;
+}
+
+/* File input styling - only the button part */
+input[type="file"]::file-selector-button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    background-color: #f5f3ed; /* beige-bg */
+    color: #111111; /* primary-black */
+    font-size: 0.875rem;
+    cursor: pointer;
+    margin-right: 0.5rem;
+}
+
+input[type="file"]::file-selector-button:hover {
+    border-color: #d5d5d5;
+    background-color: #e8e4dc; /* beige-hover */
+}
+
+.index-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.7rem;
+}
+
+.index-nav-section-label {
+    color: #73706a;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.6rem;
+    text-transform: uppercase;
+}
+
+.index-nav-section-spaced {
+    margin-top: 1rem;
+}
+
+.index-sidebar-nav .index-nav-item {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0.6rem;
+    color: #171717;
+    cursor: pointer;
+    display: flex;
+    font-size: 0.97rem;
+    font-weight: 600;
+    gap: 0.8rem;
+    justify-content: flex-start;
+    line-height: 1.22;
+    min-height: 2.55rem;
+    padding: 0.55rem 0.95rem;
+    text-align: left;
+    text-decoration: none;
+    transition: background-color 0.16s ease, color 0.16s ease;
+    width: 100%;
+}
+
+.index-sidebar-nav #openIngestionBtn {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.index-sidebar-nav a[href="/chat-embed-example.html"] {
+    background-color: #f5f3ed;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.index-sidebar-nav .index-nav-item:hover {
+    background-color: #f4f4f2;
+    box-shadow: none;
+    transform: none;
+}
+
+.index-sidebar-nav .index-nav-item-active {
+    background-color: #d9e8fb;
+    color: #2867b2;
+}
+
+.index-sidebar-nav .index-nav-item-danger {
+    color: #9a2a23;
+}
+
+.index-nav-icon {
+    align-items: center;
+    display: inline-flex;
+    flex: 0 0 1.25rem;
+    font-size: 1rem;
+    justify-content: center;
+    line-height: 1;
+}
+
+#openChatBtn .index-nav-icon,
+#openSearchBtn .index-nav-icon {
+    font-size: 1.2rem;
+}
+
+.index-page-header {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.7rem;
+}
+
+.index-page-title {
+    color: #171717;
+    font-size: 1.8rem;
+    font-weight: 300;
+    letter-spacing: 0;
+    line-height: 1.15;
+}
+
+.index-page-subtitle {
+    color: #3f3c38;
+    font-size: 1.05rem;
+    font-weight: 300;
+    margin-top: 0.35rem;
+}
+
+.index-domain-control {
+    align-items: center;
+    display: flex;
+    gap: 0.7rem;
+    margin-top: 2.4rem;
+}
+
+.index-domain-control label {
+    color: #3f3c38;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.index-domain-select {
+    background-color: #ffffff;
+    border: 1px solid #e5e2dd;
+    border-radius: 0.45rem;
+    color: #171717;
+    font-size: 1.25rem;
+    min-width: 11.5rem;
+    padding: 0.55rem 2.2rem 0.55rem 1rem;
+}
+
+.index-tabs {
+    align-items: flex-end;
+    border-bottom: 1px solid #e5e2dd;
+    display: flex;
+    gap: 1.1rem;
+    margin-bottom: 1.55rem;
+}
+
+.index-tab {
+    background: transparent;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    color: #3f3c38;
+    cursor: pointer;
+    font-size: 1.08rem;
+    font-weight: 500;
+    padding: 0 0.25rem 0.75rem;
+}
+
+.index-tab:hover {
+    background: transparent;
+    box-shadow: none;
+    color: #171717;
+    transform: none;
+}
+
+.index-tab-active {
+    border-bottom-color: #171717;
+    color: #171717;
+    font-weight: 700;
+}
+
+.index-tab-panel[hidden] {
+    display: none;
+}
+
+.index-toggle-row {
+    align-items: center;
+    border-radius: 0.55rem;
+    display: flex;
+    gap: 1rem;
+    max-width: 42rem;
+    min-height: 4.65rem;
+    padding: 1rem 1.25rem;
+}
+
+.index-toggle-estimate {
+    background-color: #f5f5f5;
+}
+
+.index-toggle-danger {
+    background-color: #ffffff;
+    border: 1px solid #e05a51;
+    color: #9a2a23;
+}
+
+.index-toggle-icon {
+    flex: 0 0 auto;
+    font-size: 1.2rem;
+}
+
+.index-toggle-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.index-toggle-copy span:first-child {
+    font-size: 0.875rem;
+    font-weight: 800;
+}
+
+.index-toggle-copy span:last-child {
+    color: #3f3c38;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.index-toggle-row input[type="checkbox"] {
+    height: 1.55rem;
+    width: 1.55rem;
+}
+
+.index-action-row {
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: 1fr auto;
+    max-width: 42rem;
+}
+
+.index-primary-action,
+.index-secondary-action {
+    min-height: 2.9rem;
+}
+
+.index-primary-action {
+    background-color: #171717;
+    border-radius: 0.55rem;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 800;
+    width: 100%;
+}
+
+.index-secondary-action {
+    background-color: #ffffff;
+    border: 1px solid #d8d5cf;
+    border-radius: 0.55rem;
+    color: #171717;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0 1.3rem;
+}
+
+/* Hover state */
+#openSearchBtn:hover,
+#openDebugBtn:hover,
+#openListDocsBtn:hover,
+#openChatBtn:hover,
+#openPromptRegistryBtn:hover,
+#openToolRegistryBtn:hover,
+#openDomainEmbeddingConfigBtn:hover,
+#openBatchUploadBtn:hover,
+#openRetrievalEvalsBtn:hover,
+#openIngestionBtn:hover,
+#pdfIndexBtn:hover,
+#mwIndexBtn:hover,
+#htmlIndexBtn:hover,
+#fetchDebugBtn:hover,
+#downloadBtn:hover,
+#fetchPreviewBtn:hover,
+#saveBtn:hover,
+#reloadBtn:hover,
+#reloadCacheBtn:hover,
+#applyActiveDomainBtn:hover,
+#generateJsonBtn:hover,
+#processBtn:hover,
+#viewSampleBtn:hover,
+#copySampleBtn:hover,
+#downloadResultsBtn:hover,
+#clearResultsBtn:hover,
+#copyJsonBtn:hover,
+#downloadJsonBtn:hover,
+#useThisConfigBtn:hover,
+#openDeleteIndexBtn:hover,
+button[type="submit"]:hover,
+a[href^="/"]:hover {
+    background-color: #e8e4dc; /* beige-hover */
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus state for accessibility */
+#openSearchBtn:focus,
+#openDebugBtn:focus,
+#openListDocsBtn:focus,
+#openChatBtn:focus,
+#openPromptRegistryBtn:focus,
+#openToolRegistryBtn:focus,
+#openDomainEmbeddingConfigBtn:focus,
+#openBatchUploadBtn:focus,
+#openRetrievalEvalsBtn:focus,
+#openIngestionBtn:focus,
+#pdfIndexBtn:focus,
+#mwIndexBtn:focus,
+#htmlIndexBtn:focus,
+#fetchDebugBtn:focus,
+#downloadBtn:focus,
+#fetchPreviewBtn:focus,
+#saveBtn:focus,
+#reloadBtn:focus,
+#reloadCacheBtn:focus,
+#applyActiveDomainBtn:focus,
+#generateJsonBtn:focus,
+#processBtn:focus,
+#viewSampleBtn:focus,
+#copySampleBtn:focus,
+#downloadResultsBtn:focus,
+#clearResultsBtn:focus,
+#copyJsonBtn:focus,
+#downloadJsonBtn:focus,
+#useThisConfigBtn:focus,
+#openDeleteIndexBtn:focus,
+button[type="submit"]:focus,
+a[href^="/"]:focus,
+input[type="file"]:focus {
+    outline: 2px solid #d5d5d5; /* border-color */
+    outline-offset: 2px;
+}
+
+.index-sidebar-nav .index-nav-item,
+.index-sidebar-nav #openChatBtn,
+.index-sidebar-nav #openListDocsBtn,
+.index-sidebar-nav #openSearchBtn,
+.index-sidebar-nav #openDebugBtn,
+.index-sidebar-nav #openDeleteIndexBtn,
+.index-sidebar-nav #openPromptRegistryBtn,
+.index-sidebar-nav #openToolRegistryBtn,
+.index-sidebar-nav #openDomainEmbeddingConfigBtn,
+.index-sidebar-nav #openRetrievalEvalsBtn,
+.index-sidebar-nav a[href^="/"] {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.index-sidebar-nav .index-nav-item:hover {
+    background-color: #f4f4f2;
+    box-shadow: none;
+    transform: none;
+}
+
+.index-sidebar-nav .index-nav-item-active:hover {
+    background-color: #d9e8fb;
+}
+
+.index-sidebar-nav .index-nav-item:focus {
+    outline: 2px solid #d5d5d5;
+    outline-offset: 2px;
+}
+
+.sidebar-brand {
+    border-bottom: 1px solid #e5e2dd;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+}
+
+.sidebar-brand .logo-row {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+}
+
+.sidebar-brand .logo {
+    height: 75px;
+    width: 75px;
+}
+
+.sidebar-brand .brand {
+    color: #171717;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.sidebar-brand .brand-sub {
+    color: #3f3c38;
+    font-size: 0.85rem;
+    font-weight: 400;
+    line-height: 1.4;
+}

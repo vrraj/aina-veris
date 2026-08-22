@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aina-Veris Pipeline — Ingestion and Tools</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
+    <link href="/static/index-page.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen">
+        <!-- Left Sidebar - Menu Links -->
+        <aside class="w-72 bg-white border-r border-gray-200 px-5 py-3 flex-shrink-0">
+            <div class="sidebar-brand">
+                <div class="logo-row">
+                    <img src="/images/aina-markets-dark-on-white.png" class="logo" alt="Aina Markets Logo">
+                    <div class="brand">Aina Veris</div>
+                </div>
+                <div class="brand-sub">Domain-aware RAG runtime for AI agents and applications, with A2A and MCP access, multi-domain knowledge isolation, configurable retrieval and model pipelines, tool-assisted inference, and grounded citations.</div>
+            </div>
+            <nav class="index-sidebar-nav">
+                <div class="index-nav-section-label">Workspace</div>
+                <button
+                    id="openIngestionBtn"
+                    class="index-nav-item index-nav-item-active"
+                    title="Extract & generate embeddings - ingest content into the active domain's index">
+                    <span class="index-nav-icon" aria-hidden="true">↑</span>
+                    <span>Content ingestion</span>
+                </button>
+                <button
+                    id="openChatBtn"
+                    class="index-nav-item"
+                    title="Interactive Q&A using retrieved documents assisted with tool calling">
+                    <span class="index-nav-icon" aria-hidden="true">⌕</span>
+                    <span>Ask Aina Veris</span>
+                </button>
+                <a
+                    href="/chat-embed-example.html"
+                    target="_blank" rel="noopener noreferrer"
+                    class="index-nav-item"
+                    title="View the embeddable chat popup demo in a new tab">
+                    <span class="index-nav-icon" aria-hidden="true">&lt;/&gt;</span>
+                    <span style="font-weight: 500;">Embeddable chat</span>
+                </a>
+
+                <div class="index-nav-section-label index-nav-section-spaced">Content</div>
+                <button
+                    id="openListDocsBtn"
+                    class="index-nav-item"
+                    title="See indexed / embedded documents with chunk counts. The RAG chat is related to documents retrieved from this database">
+                    <span class="index-nav-icon" aria-hidden="true">☷</span>
+                    <span>Explore Knowledge Base</span>
+                </button>
+                <button
+                    id="openSearchBtn"
+                    class="index-nav-item"
+                    title="Search documents using semantic similarity">
+                    <span class="index-nav-icon" aria-hidden="true">⌕</span>
+                    <span>Semantic Search</span>
+                </button>
+                <a
+                    id="openRetrievalEvalsBtn"
+                    class="index-nav-item"
+                    href="/retrieval-evals"
+                    target="_blank"
+                    title="Evaluate dense/sparse/hybrid retrieval with optional ColBERT and cross-encoder reranking">
+                    <span class="index-nav-icon" aria-hidden="true">▥</span>
+                    <span>Retrieval evals</span>
+                </a>
+                <button
+                    id="openDebugBtn"
+                    class="index-nav-item"
+                    title="View raw document payloads and metadata. Inspect document structure and content">
+                    <span class="index-nav-icon" aria-hidden="true">◇</span>
+                    <span>View metadata</span>
+                </button>
+                <button
+                    id="openDeleteIndexBtn"
+                    class="index-nav-item index-nav-item-danger"
+                    title="Preview and delete indexed chunks for a given document URL (matches base_url_lower)">
+                    <span class="index-nav-icon" aria-hidden="true">♲</span>
+                    <span>Delete documents</span>
+                </button>
+
+                <div class="index-nav-section-label index-nav-section-spaced">Configuration</div>
+                <button
+                    id="openPromptRegistryBtn"
+                    class="index-nav-item"
+                    title="Edit prompt registry by domain and stage">
+                    <span class="index-nav-icon" aria-hidden="true">›_</span>
+                    <span>Prompt registry</span>
+                </button>
+                <button
+                    id="openToolRegistryBtn"
+                    class="index-nav-item"
+                    title="Edit tool artifact metadata for final injection behavior">
+                    <span class="index-nav-icon" aria-hidden="true">⌘</span>
+                    <span>Tool registry</span>
+                </button>
+                <button
+                    id="openDomainEmbeddingConfigBtn"
+                    class="index-nav-item"
+                    title="Edit domain-to-embedding and vector settings YAML">
+                    <span class="index-nav-icon" aria-hidden="true">⚙</span>
+                    <span>Domain embedding config</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Right Main Content -->
+        <div class="flex-1 px-8 py-4">
+            <div class="index-page-header">
+                <div>
+                    <h1 class="index-page-title">Extract &amp; generate embeddings</h1>
+                    <p class="index-page-subtitle">Extract text, generate embeddings, and index content into collection: <span id="ingestionDomainDisplay">(default)</span></p>
+                </div>
+                <div class="index-domain-control">
+                    <label for="activeDomain">Domain</label>
+                    <select id="activeDomain" class="index-domain-select">
+                        <option value="">(default)</option>
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                </div>
+            </div>
+            <div class="index-tabs" role="tablist" aria-label="Content ingestion types">
+                <button class="index-tab index-tab-active" type="button" role="tab" aria-selected="true" aria-controls="index-tab-panel-pdf" data-index-tab="pdf">PDF</button>
+                <button class="index-tab" type="button" role="tab" aria-selected="false" aria-controls="index-tab-panel-mediawiki" data-index-tab="mediawiki">MediaWiki</button>
+                <button class="index-tab" type="button" role="tab" aria-selected="false" aria-controls="index-tab-panel-html" data-index-tab="html">HTML page</button>
+                <button class="index-tab" type="button" role="tab" aria-selected="false" aria-controls="index-tab-panel-batch" data-index-tab="batch">Batch (JSON)</button>
+            </div>
+
+            <div class="index-tab-panels">
+
+            <!-- Batch Upload Pane -->
+            <div id="index-tab-panel-batch" class="index-tab-panel bg-white rounded-lg shadow-md p-4 min-h-[330px] flex flex-col" role="tabpanel" data-index-tab-panel="batch" hidden>
+                <div>
+                    <p class="text-sm text-gray-700 mb-4">
+                        Upload and process multiple documents at once using a JSON spec.
+                        Use this for bulk seeding or when you have many PDFs / URLs to ingest together.
+                    </p>
+                </div>
+                <div class="mt-auto pt-4">
+                    <button 
+                        id="openBatchUploadBtn"
+                        class="px-4 py-2 rounded-md w-fit whitespace-nowrap"
+                        title="Open the batch upload flow to process multiple documents at once">
+                        Batch Upload Wizard
+                    </button>
+                </div>
+            </div>
+
+            <!-- PDF Input Section (URL or Upload) -->
+            <div id="index-tab-panel-pdf" class="index-tab-panel bg-white rounded-lg shadow-md p-4 min-h-[330px] flex flex-col" role="tabpanel" data-index-tab-panel="pdf">
+                <div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">PDF URL</label>
+                            <input type="text" id="pdfUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://example.com/file.pdf">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bol text-gray-700">Or upload PDF</label>
+                            <input type="file" id="pdfFile" accept="application/pdf" class="mt-1 block w-full text-sm text-gray-700" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Max chunks</label>
+                            <input type="number" id="pdfMaxChunks" value="0" min="0" class="mt-1 w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <p class="text-xs text-gray-500 mt-1">0 = no user limit</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Skip sections (comma-separated)</label>
+                            <input type="text" id="pdfSkipSections" value="References, External Links, Further reading, Notes" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                    <div class="mt-4 flex flex-col gap-3">
+                        <label class="index-toggle-row index-toggle-estimate">
+                            <span class="index-toggle-icon" aria-hidden="true">⊙</span>
+                            <span class="index-toggle-copy">
+                                <span>Estimate only</span>
+                                <span>Preview chunk count, nothing written to the index</span>
+                            </span>
+                            <input type="checkbox" id="pdfEstimateToggle" checked>
+                        </label>
+                        <label class="index-toggle-row index-toggle-danger">
+                            <span class="index-toggle-icon" aria-hidden="true">△</span>
+                            <span class="index-toggle-copy">
+                                <span>Force delete existing</span>
+                                <span>Irreversibly removes prior chunks for this source first</span>
+                            </span>
+                            <input type="checkbox" id="pdfForceDelete">
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-auto pt-4">
+                    <div class="index-action-row">
+                        <button id="pdfIndexBtn" class="index-primary-action">Index PDF</button>
+                        <button type="button" class="index-secondary-action">Reset</button>
+                    </div>
+                    <div id="pdfProgress" class="text-xs text-gray-600 mt-1"></div>
+                </div>
+            </div>
+
+            <!-- MediaWiki Index Section -->
+            <div id="index-tab-panel-mediawiki" class="index-tab-panel bg-white rounded-lg shadow-md p-4 min-h-[330px] flex flex-col" role="tabpanel" data-index-tab-panel="mediawiki" hidden>
+                <div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">MediaWiki URL</label>
+                            <input type="text" id="mwUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://en.wikipedia.org/wiki/OpenAI">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Max chunks</label>
+                            <input type="number" id="mwMaxChunks" value="0" min="0" class="mt-1 w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <p class="text-xs text-gray-500 mt-1">0 = no user limit</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Skip sections (comma-separated)</label>
+                            <input type="text" id="mwSkipSections" value="References, External Links, Further reading, Notes" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">REST / Action API URL</label>
+                            <input type="text" id="mwApiUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://en.wikipedia.org">
+                            <p class="text-xs text-gray-500 mt-1">Base URL of the MediaWiki installation. Defaults to Wikipedia if not provided.</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">User-Agent (optional)</label>
+                            <input type="text" id="mwUA" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="WebsiteChatAgent/0.1 (contact@example.com)">
+                        </div>
+                    </div>
+                    <div class="mt-4 flex flex-col gap-3">
+                        <label class="index-toggle-row index-toggle-estimate">
+                            <span class="index-toggle-icon" aria-hidden="true">⊙</span>
+                            <span class="index-toggle-copy">
+                                <span>Estimate only</span>
+                                <span>Preview chunk count, nothing written to the index</span>
+                            </span>
+                            <input type="checkbox" id="mwEstimateToggle" checked>
+                        </label>
+                        <label class="index-toggle-row index-toggle-danger">
+                            <span class="index-toggle-icon" aria-hidden="true">△</span>
+                            <span class="index-toggle-copy">
+                                <span>Force delete existing</span>
+                                <span>Irreversibly removes prior chunks for this source first</span>
+                            </span>
+                            <input type="checkbox" id="mwForceDelete">
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-auto pt-4">
+                    <div class="index-action-row">
+                        <button id="mwIndexBtn" class="index-primary-action">Index MediaWiki</button>
+                        <button type="button" class="index-secondary-action">Reset</button>
+                    </div>
+                    <div id="mwProgress" class="text-xs text-gray-600 mt-1"></div>
+                </div>
+            </div>
+
+            <!-- HTML Index Section (single URL) -->
+            <div id="index-tab-panel-html" class="index-tab-panel bg-white rounded-lg shadow-md p-4 min-h-[330px] flex flex-col" role="tabpanel" data-index-tab-panel="html" hidden>
+                <div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Page URL</label>
+                            <input type="text" id="htmlUrl" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://example.com/page">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Max chunks</label>
+                            <input type="number" id="htmlMaxChunks" value="0" min="0" class="mt-1 w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <p class="text-xs text-gray-500 mt-1">0 = no user limit</p>
+                        </div>
+                        <div class="md:col-span-3">
+                            <label class="block text-sm font-medium text-gray-700">Skip sections (comma-separated)</label>
+                            <input type="text" id="htmlSkipSections" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" value="References, External links, See also, Further reading">
+                            <p class="text-xs text-gray-500 mt-1">Case-insensitive H2 titles; children are skipped implicitly.</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex flex-col gap-3">
+                        <label class="index-toggle-row index-toggle-estimate">
+                            <span class="index-toggle-icon" aria-hidden="true">⊙</span>
+                            <span class="index-toggle-copy">
+                                <span>Estimate only</span>
+                                <span>Preview chunk count, nothing written to the index</span>
+                            </span>
+                            <input type="checkbox" id="htmlEstimateToggle" checked>
+                        </label>
+                        <label class="index-toggle-row index-toggle-danger">
+                            <span class="index-toggle-icon" aria-hidden="true">△</span>
+                            <span class="index-toggle-copy">
+                                <span>Force delete existing</span>
+                                <span>Irreversibly removes prior chunks for this source first</span>
+                            </span>
+                            <input type="checkbox" id="htmlForceDelete">
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-auto pt-4">
+                    <div class="index-action-row">
+                        <button id="htmlIndexBtn" class="index-primary-action">Index HTML</button>
+                        <button type="button" class="index-secondary-action">Reset</button>
+                    </div>
+                    <div id="htmlProgress" class="text-xs text-gray-600 mt-1"></div>
+                </div>
+            </div>
+
+            </div>
+
+            <!-- List Documents Panel -->
+            <div id="content-panel-list-docs" class="content-panel bg-white rounded-lg shadow-md p-6" role="tabpanel" style="display: none;">
+                <style>
+                    .copy-btn {
+                        display: none;
+                        position: absolute;
+                        right: 8px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        padding: 2px 6px;
+                        background: #7be936;
+                        border-radius: 4px;
+                        font-size: 0.75rem;
+                        cursor: pointer;
+                        z-index: 2;
+                    }
+                    .copy-btn:hover {
+                        background: #d1d5db;
+                    }
+                    .url-cell {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        width: 100%;
+                        padding-right: 60px;
+                    }
+                    .url-text {
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .url-cell:hover .copy-btn {
+                        display: inline-block;
+                    }
+                </style>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Active Domain</label>
+                        <select id="listDocsActiveDomain" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="">(default)</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Filter by URL (optional) - exact match</label>
+                        <input id="listDocsUrl" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://example.com/path" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Max rows</label>
+                        <input id="listDocsMaxRows" type="number" min="1" step="1" value="20" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                        <p class="text-xs text-gray-500 mt-1">Controls how many array items are shown (display only).</p>
+                    </div>
+                    <div class="flex items-end">
+                        <button id="listDocsFetchBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Fetch</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded p-4 mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <h3 class="text-lg inline">Results</h3>
+                            <span id="listDocsResultCount" class="ml-2 text-sm text-gray-500"></span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-500">Use for batch imports (check PDF paths after download)</span>
+                            <button id="listDocsDownloadBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Download JSON</button>
+                        </div>
+                    </div>
+                    <div class="mb-2 text-sm text-gray-500">
+                        <span id="listDocsShowingCount" class="font-medium"></span>
+                        <span id="listDocsTruncatedWarning" class="hidden text-yellow-600 ml-2">(truncated for display, download for full data)</span>
+                    </div>
+                    <div id="listDocsOutput" class="overflow-auto h-96 text-sm"></div>
+                </div>
+            </div>
+
+            <!-- Debug Index Panel -->
+            <div id="content-panel-debug-index" class="content-panel bg-white rounded-lg shadow-md p-6" role="tabpanel" style="display: none;">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Filter by URL (optional)</label>
+                        <input id="debugIndexUrl" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://example.com/path" />
+                    </div>
+                    <div>
+                        <label for="debugIndexActiveDomain" class="block text-sm font-medium text-gray-700">Active Domain</label>
+                        <select id="debugIndexActiveDomain" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="">(default)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Max rows</label>
+                        <input id="debugIndexMaxRows" type="number" min="1" step="1" value="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                        <p class="text-xs text-gray-500 mt-1">Controls how many array items are shown (display only).</p>
+                    </div>
+                    <div class="flex items-end">
+                        <button id="debugIndexFetchBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Fetch</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded p-4 mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <h3 class="text-lg inline">Results</h3>
+                            <span id="debugIndexResultCount" class="ml-2 text-sm text-gray-500"></span>
+                        </div>
+                        <button id="debugIndexDownloadBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Download JSON</button>
+                    </div>
+                    <div class="mb-2 text-sm text-gray-500">
+                        <span id="debugIndexShowingCount" class="font-medium"></span>
+                        <span id="debugIndexTruncatedWarning" class="hidden text-yellow-600 ml-2">(truncated for display, download for full data)</span>
+                    </div>
+                    <pre id="debugIndexOutput" class="bg-gray-50 p-4 rounded overflow-auto h-96 text-sm"></pre>
+                </div>
+            </div>
+
+            <!-- Search Panel -->
+            <div id="content-panel-search" class="content-panel bg-white rounded-lg shadow-md p-6" role="tabpanel" style="display: none;">
+                <div class="mb-4">
+                    <label for="searchActiveDomain" class="block text-sm font-medium text-gray-700">Active Domain</label>
+                    <select id="searchActiveDomain" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">(default)</option>
+                    </select>
+                </div>
+                <div class="space-y-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Search Query</label>
+                        <input type="text" id="searchQuery" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Enter your search query">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Limit Results</label>
+                        <input type="number" id="searchLimit" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" value="5" min="1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Filter by URL (optional)</label>
+                        <input type="text" id="searchUrlFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Filter by specific URL">
+                    </div>
+                    <div>
+                        <label for="searchMode" class="block text-sm font-medium text-gray-700">Search Mode</label>
+                        <select id="searchMode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="dense" selected>Dense</option>
+                            <option value="hybrid">Hybrid (dense + sparse)</option>
+                            <option value="sparse">Sparse</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Score Threshold (0-1)</label>
+                            <input type="number" id="searchScoreThreshold" step="0.05" min="0" max="1" value="0.35" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Exact Match</label>
+                            <select id="searchExactMatch" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="true">Yes</option>
+                                <option value="false" selected>No</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Include Payload</label>
+                            <select id="searchWithPayload" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="button" id="searchSubmitBtn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium" style="background-color: #f5f3ed;">Search</button>
+                </div>
+                <div id="searchResults" class="mt-6 space-y-4"></div>
+            </div>
+
+            <!-- Delete Index Panel -->
+            <div id="content-panel-delete-index" class="content-panel bg-white rounded-lg shadow-md p-6" role="tabpanel" style="display: none;">
+                <p class="text-sm text-gray-700 mb-6">This delete operation is <b>non-recoverable</b>. You will lose the document chunks indexed by provided URL.</p>
+
+                <div class="mb-4">
+                    <label for="deleteIndexActiveDomain" class="block text-sm font-medium text-gray-700">Active Domain</label>
+                    <select id="deleteIndexActiveDomain" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500">
+                        <option value="">(default)</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Document URL</label>
+                        <input id="deleteIndexUrl" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500" placeholder="https://example.com/path" />
+                        <p class="text-xs text-gray-500 mt-1">Will be normalized to base URL and matched against <code>base_url_lower</code>.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Sample chunks</label>
+                        <input id="deleteIndexSampleLimit" type="number" min="1" step="1" value="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500" />
+                        <p class="text-xs text-gray-500 mt-1">How many document chunks to preview before deleting.</p>
+                    </div>
+                    <div class="flex items-end space-x-2">
+                        <button id="deleteIndexFetchPreviewBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Fetch</button>
+                        <button id="deleteIndexConfirmDeleteBtn" class="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 opacity-50 cursor-not-allowed" disabled>Confirm Delete</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded p-4 mb-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="text-lg inline">Preview Chunks</h3>
+                            <span id="deleteIndexPreviewSummary" class="ml-2 text-sm text-gray-500"></span>
+                        </div>
+                    </div>
+                    <div id="deleteIndexStatusMessage" class="mb-2 text-sm"></div>
+                    <pre id="deleteIndexPreviewOutput" class="bg-gray-50 p-4 rounded overflow-auto h-96 text-sm"></pre>
+                </div>
+            </div>
+
+            <footer class="text-center text-xs text-gray-500 mt-8">
+              <p>
+                Optional seed data derived from 
+                <a href="https://www.wikipedia.org/" target="_blank" class="underline">Wikipedia</a>,
+                licensed under 
+                <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" class="underline">CC BY-SA 4.0</a>.
+              </p>
+            </footer>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+    <script src="/static/index-page.js"></script>
+</body>
+</html>

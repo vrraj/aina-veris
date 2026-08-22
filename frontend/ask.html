@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat with Retrieved Content and available tools</title>
+    <!-- Use local static assets; no external CDNs -->
+    <link rel="stylesheet" href="static/chat.css" />
+    </style>
+  </head>
+  <body>
+    <!-- App layout: sidebar (controls), main (metrics + history + input) -->
+    <div id="app">
+      <aside id="sidebar" aria-label="Parameters Sidebar">
+        <nav class="text-sm text-gray-600 mb-4 flex items-center flex-nowrap" style="padding: 1px 1px; font-size: 14px;">
+          <a href="/" style="text-decoration: none; border: none; background: none; padding: 0; margin: 0;">
+            <img src="/images/aina-markets-dark-on-white.png" alt="Aina Veris" style="width: 40px; height: 40px; margin-right: 8px; vertical-align: middle;">
+          </a>
+          <a href="/" class="hover:text-gray-900" style="text-decoration: none;">Aina Veris</a>
+          <span class="mx-2">→</span>
+          <span class="text-gray-900">Ask AI</span>
+        </nav>
+        <div class="button-group" style="margin-bottom: 1rem; display: flex; gap: 8px;">
+          <button id="clear_chat_btn" type="button" class="action-button">Clear Chat</button>
+          <button id="reset_params_btn" type="button" class="action-button">Reset Params</button>
+          <a href="/retrieval-evals" target="_blank" class="action-button" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">Retrieval Evals</a>
+        </div>
+        <div class="form-field" style="margin-bottom: 0.5rem; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <label for="show_processing_steps" style="margin:0;">Show Processing Steps</label>
+          <input id="show_processing_steps" type="checkbox" checked />
+        </div>
+        <div class="form-field" style="margin-bottom: 0.5rem; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <label for="active_domain" style="margin:0;">Active Domain:</label>
+          <select id="active_domain" style="min-width: 120px;">
+            <option value="">(global_defaults)</option>
+            <!-- Options will be populated dynamically -->
+          </select>
+        </div>
+        <div class="form-field" style="margin-bottom: 0.5rem; display:flex; align-items:center; gap:8px;">
+          <label for="active_collection" style="margin:0;">Active Collection:</label>
+          <span id="active_collection" style="font-weight: normal; color: #666;">Loading...</span>
+        </div>
+        <h2 class="section-title">Parameters</h2>
+        <form id="params_form" autocomplete="off">
+          <!-- Query Rewrite group -->
+          <div class="group-box ux-11px collapsible-group is-collapsed" id="query_rewrite_section" style="position:relative;">
+            <button type="button" class="collapsible-header" aria-expanded="false" onclick="toggleCollapsible(this, event)">
+              <span class="subsection-title" style="margin-right:6px;">Query Rewrite</span>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </button>
+            <div class="collapsible-body">
+              <div class="form-field">
+                <label for="enable_query_rewrite">Enable Rewrite</label>
+                <input id="enable_query_rewrite" type="checkbox" />
+              </div>
+              <div class="form-field rewrite-row">
+                <label for="rewrite_confidence_threshold">Rewrite Confidence Threshold</label>
+                <input id="rewrite_confidence_threshold" type="number" min="0" max="1" step="0.01" value="0.67" />
+                <div id="rewrite_help_popup" class="popover" role="dialog" aria-hidden="true" style="display:none;">
+                  <p>
+                    For Rewrite Tail Turns: Minimum confidence (0–1) required before a rewritten
+                    query replaces the user’s original. Lower = more rewrites, higher = more cautious.
+                  </p>
+                  <p>
+                    For Rewrite Confidence Threshold: Minimum confidence (0–1) required before a rewritten
+                    query replaces the user’s original. Lower = more rewrites, higher = more cautious.
+                  </p>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="rewrite_tail_turns">Rewrite Tail Turns</label>
+                <input id="rewrite_tail_turns" type="number" min="0" step="1" value="3" />
+              </div>
+              <div class="form-field">
+                <label for="rewrite_summary_turns">Rewrite Summary Turns</label>
+                <input id="rewrite_summary_turns" type="number" min="0" step="1" value="3" />
+                <div id="rewrite_summary_help_popup" class="popover" role="dialog" aria-hidden="true" style="display:none;">
+                  <p>
+                    Number of older turns to summarize before the rewrite tail. Set to 0 to disable pre-summary and use only the tail turns.
+                  </p>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="summarizer_max_input_tokens">Summarizer Max Input Tokens</label>
+                <input id="summarizer_max_input_tokens" type="number" min="0" step="1" />
+              </div>
+            </div>
+          </div>
+          <!-- Retrieval group -->
+          <div class="group-box ux-11px collapsible-group" data-section="retrieval">
+            <button type="button" class="collapsible-header" aria-expanded="true" onclick="toggleCollapsible(this, event)">
+              <span class="subsection-title">Retrieval</span>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </button>
+            <div class="collapsible-body">
+              <div class="form-field">
+                <label for="search_mode">Search Mode</label>
+                <select id="search_mode">
+                  <option value="dense">dense</option>
+                  <option value="sparse">sparse</option>
+                  <option value="hybrid">hybrid</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="top_k">Top K</label>
+                <input id="top_k" type="number" min="1" step="1" value="10" />
+              </div>
+              <div class="form-field">
+                <label for="score_threshold">Score Threshold</label>
+                <input id="score_threshold" type="number" min="0" max="1" step="0.01" value="0.35" />
+              </div>
+              <div class="form-field checkbox-field">
+                <input id="split_compound_queries" type="checkbox" />
+                <label for="split_compound_queries">Split Compound Query</label>
+              </div>
+              <div class="form-field">
+                <label for="max_compound_queries">Maximum Subqueries</label>
+                <input id="max_compound_queries" type="number" min="2" max="8" step="1" value="4" />
+              </div>
+              <div class="form-field">
+                <label for="compound_min_anchors_per_subquery">Compound Anchors per Subquery</label>
+                <input id="compound_min_anchors_per_subquery" type="number" min="1" max="20" step="1" value="5" />
+              </div>
+              <div class="form-field">
+                <label for="compound_rerank_pool_cap">Compound Rerank Pool Cap</label>
+                <input id="compound_rerank_pool_cap" type="number" min="2" max="100" step="1" value="40" />
+              </div>
+            </div>
+          </div>
+          <!-- Reranker group -->
+          <div class="group-box ux-11px collapsible-group" data-section="reranker">
+            <button type="button" class="collapsible-header" aria-expanded="true" onclick="toggleCollapsible(this, event)">
+              <span class="subsection-title">Reranker</span>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </button>
+            <div class="collapsible-body">
+              <div class="form-field checkbox-field">
+                <input id="use_colbert" type="checkbox" />
+                <label for="use_colbert">Enable ColBERT Late Interaction</label>
+              </div>
+              <div class="form-field">
+                <label for="colbert_top_n">ColBERT Top N</label>
+                <input id="colbert_top_n" type="number" min="1" step="1" value="8" />
+              </div>
+              <div class="form-field checkbox-field">
+                <input id="enable_cross_encoder_rerank" type="checkbox" />
+                <label for="enable_cross_encoder_rerank">Enable Cross Encoder Rerank</label>
+              </div>
+              <div class="form-field">
+                <label for="cross_encoder_top_n">Cross Encoder Top N</label>
+                <input id="cross_encoder_top_n" type="number" min="1" step="1" value="5" />
+              </div>
+            </div>
+          </div>
+          <!-- Context Window group -->
+          <div class="group-box ux-11px collapsible-group is-collapsed">
+            <button type="button" class="collapsible-header" aria-expanded="false" onclick="toggleCollapsible(this, event)">
+              <span class="subsection-title">Context Window</span>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </button>
+            <div class="collapsible-body">
+              <div class="form-field">
+                <label for="raw_tail_turns">Raw Tail Turns</label>
+                <input id="raw_tail_turns" type="number" min="0" step="1" value="2" />
+              </div>
+              <div class="form-field field-row" style="position: relative;">
+                <label for="summarizer_max_output_tokens">
+                  Summarizer Max Output Tokens
+                  <a href="#" id="summarizer_output_help_link" class="help-link" aria-haspopup="true" aria-controls="summarizer_output_help_popup">Help</a>
+                </label>
+                <input id="summarizer_max_output_tokens" type="number" min="0" step="1" />
+                <!-- Lightweight popover container; populated by chat.js -->
+                <div id="summarizer_output_help_popup" class="popover" role="dialog" aria-hidden="true" style="display:none;"></div>
+              </div>
+            </div>
+          </div>
+
+
+          <!-- Inference group -->
+          <div class="group-box ux-11px collapsible-group is-collapsed">
+            <button type="button" class="collapsible-header" aria-expanded="false" onclick="toggleCollapsible(this, event)">
+              <span class="subsection-title">Inference</span>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </button>
+            <div class="collapsible-body">
+              <div class="form-field checkbox-field">
+                <input id="stream_answer" type="checkbox" />
+                <label for="stream_answer">Stream answer</label>
+              </div>
+              <div class="form-field checkbox-field field-row" style="position: relative;">
+                <input id="use_tools" type="checkbox" />
+                <label for="use_tools">
+                  Use tools?
+                  <a href="#" id="tools_help_link" class="help-link" aria-haspopup="true" aria-controls="tools_help_popup">Help</a>
+                </label>
+                <!-- Lightweight popover container; populated by chat.js -->
+                <div id="tools_help_popup" class="popover" role="dialog" aria-hidden="true" style="display:none;"></div>
+              </div>
+               <div class="form-field">
+                <label for="temperature">Temperature</label>
+                <input id="temperature" type="number" min="0" max="2" step="0.1" value="0.4" />
+              </div>
+              <div class="form-field">
+                <label for="top_p">Top P</label>
+                <input id="top_p" type="number" min="0" max="1" step="0.01" value="0.9" />
+              </div>
+              <div class="form-field">
+                <label for="inference_context_rows">Inference Context Rows</label>
+                <input id="inference_context_rows" type="number" min="1" step="1" value="3" readonly />
+              </div>
+              <div class="form-field">
+                <label for="max_output_tokens">Max Output Tokens</label>
+                <input id="max_output_tokens" type="number" min="1" step="1" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Buttons moved to top of sidebar -->
+
+          <!-- Models Information -->
+          <div class="group-box ux-11px collapsible-group" id="models_section">
+            <div class="collapsible-header models-header" tabindex="0" aria-expanded="true" role="button" onclick="toggleCollapsible(this, event)">
+              <span class="subsection-title">Models Used</span>
+              <span style="margin-left: 8px;">
+                <a
+                  id="change_models_btn"
+                  href="#"
+                  class="link-button"
+                  role="button"
+                  onclick="if (window.__openModelsModal) { window.__openModelsModal(); } else { var m=document.getElementById('models_modal'); if(m){m.style.display='block';} } return false;"
+                >
+                  [Customize]
+                </a>
+              </span>
+              <span class="chevron" aria-hidden="true">▲</span>
+            </div>
+            <div class="collapsible-body">
+              <div class="form-field model-row">
+                <span class="model-label">Embedding:</span>
+                <div id="model_embedding" class="model-value" style="width:100%">text-embedding-3-small</div>
+              </div>
+              <div class="form-field model-row">
+                <span class="model-label">Query Rewrite:</span>
+                <div id="model_query_rewrite" class="model-value" style="width:100%">gpt-4o</div>
+              </div>
+              <div class="form-field model-row">
+                <span class="model-label">Summarizer:</span>
+                <div id="model_summarizer" class="model-value" style="width:100%">gpt-4o</div>
+              </div>
+              <div class="form-field model-row">
+                <span class="model-label">Reranker:</span>
+                <div id="model_reranker" class="model-value" style="width:100%">gpt-4o-mini</div>
+              </div>
+              <div class="form-field model-row">
+                <span class="model-label">Inference:</span>
+                <div id="model_inference" class="model-value" style="width:100%">gpt-4o</div>
+              </div>
+            </div>
+          </div>
+          <!-- Note: Controls are inert in this phase (no backend). -->
+        </form>
+      </aside>
+
+      <button
+        id="sidebar_toggle"
+        type="button"
+        class="sidebar-toggle"
+        aria-label="Collapse parameters panel"
+        aria-controls="sidebar"
+        aria-expanded="true"
+        title="Hide parameters"
+      >
+        ◀
+      </button>
+
+      <main id="main" aria-label="Chat Area">
+        <!-- Turn rollups -->
+        <section id="metrics_bar" class="metrics-compact" aria-label="Metrics">
+          <!-- Part 1: Turn Metrics -->
+          <div class="metrics-subsection-title">Per Turn Metrics  :</div>
+          <div class="metric"><span class="metric-label">Input Tokens</span><span id="turn_input_tokens" class="metric-value" data-sum="turn_metrics.embedding.input_tokens, turn_metrics.rerank.input_tokens, turn_metrics.summary.input_tokens, turn_metrics.rewrite.input_tokens, turn_metrics.inference.input_tokens, turn_metrics.inference_tools_synth.input_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Output Tokens</span><span id="turn_output_tokens" class="metric-value" data-sum="turn_metrics.rerank.output_tokens, turn_metrics.summary.output_tokens, turn_metrics.rewrite.output_tokens, turn_metrics.inference.output_tokens, turn_metrics.inference_tools_synth.output_tokens">0</span></div>
+          <div class="metric emphasis"><span class="metric-label">Cost</span><span id="turn_total_cost" class="metric-value" data-metric="turn_metrics.totals.costs.turn_total">0</span></div>
+
+          <div style="flex-basis:100%;height:0"></div>
+          <!-- Query Embedding -->
+          <div class="metric group-label">Query Embedding</div>
+          <div class="metric"><span class="metric-label">Tokens</span><span id="embed_tokens" class="metric-value" data-metric="turn_metrics.embedding.input_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Cost</span><span id="embed_cost" class="metric-value" data-metric="turn_metrics.embedding.costs">0</span></div>
+
+          <div class="metric sep"></div>
+
+          <!-- Rewrite -->
+          <div class="metric group-label">Query Rewrite</div>
+          <div class="metric"><span class="metric-label">Input Tokens</span><span id="rewrite_tokens_in" class="metric-value" data-metric="turn_metrics.rewrite.input_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Output Tokens</span><span id="rewrite_tokens_out" class="metric-value" data-metric="turn_metrics.rewrite.output_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Cost</span><span id="rewrite_cost" class="metric-value" data-metric="turn_metrics.rewrite.costs">0</span></div>
+
+          <div class="metric sep"></div>
+
+          <!-- Summarizer -->
+          <div class="metric group-label">Summarizer</div>
+          <div class="metric"><span class="metric-label">Input Tokens</span><span id="summary_tokens_in" class="metric-value" data-metric="turn_metrics.summary.input_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Output Tokens</span><span id="summary_tokens_out" class="metric-value" data-metric="turn_metrics.summary.output_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Cost</span><span id="summary_cost" class="metric-value" data-metric="turn_metrics.summary.costs">0</span></div>
+
+          <div class="metric sep"></div>
+
+          <!-- Rerank -->
+          <div class="metric group-label">Rerank</div>
+          <div class="metric"><span class="metric-label">Input Tokens</span><span id="rerank_tokens_in" class="metric-value" data-metric="turn_metrics.rerank.input_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Output Tokens</span><span id="rerank_tokens_out" class="metric-value" data-metric="turn_metrics.rerank.output_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Cost</span><span id="rerank_cost" class="metric-value" data-metric="turn_metrics.rerank.costs">0</span></div>
+
+          <div class="metric sep"></div>
+
+          
+          <!-- Inference -->
+          <div class="metric group-label">Inference #1</div>
+          <div class="metric"><span class="metric-label">Input Tokens</span><span id="prompt_tokens" class="metric-value" data-metric="turn_metrics.inference.input_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Output Tokens</span><span id="completion_tokens" class="metric-value" data-metric="turn_metrics.inference.output_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Reasoning Tokens</span><span id="reasoning_tokens" class="metric-value" data-metric="turn_metrics.inference.reasoning_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Total Tokens</span><span id="total_tokens" class="metric-value" data-sum="turn_metrics.inference.input_tokens, turn_metrics.inference.output_tokens">0</span></div>
+          <div class="metric"><span class="metric-label">Input Cost</span><span id="prompt_cost" class="metric-value" data-metric="turn_metrics.inference.cost_input">0</span></div>
+          <div class="metric"><span class="metric-label">Output Cost</span><span id="completion_cost" class="metric-value" data-metric="turn_metrics.inference.cost_output">0</span></div>
+          <div class="metric"><span class="metric-label">Inference <b>Total</b> Cost</span><span id="total_cost" class="metric-value" data-metric="turn_metrics.inference.cost_total">0</span></div>
+
+          <!-- Inference #2 (Tool Synthesis) - optional, shown when backend provides metrics -->
+          <div id="inference2_block">
+            <div class="metric group-label">Inference #2 (Tool Synthesis)</div>
+            <div class="metric"><span class="metric-label">Input Tokens</span><span class="metric-value" data-metric="turn_metrics.inference_tools_synth.input_tokens">0</span></div>
+            <div class="metric"><span class="metric-label">Output Tokens</span><span class="metric-value" data-metric="turn_metrics.inference_tools_synth.output_tokens">0</span></div>
+            <div class="metric"><span class="metric-label">Reasoning Tokens</span><span class="metric-value" data-metric="turn_metrics.inference_tools_synth.reasoning_tokens">0</span></div>
+            <div class="metric"><span class="metric-label">Total Tokens</span><span class="metric-value" data-sum="turn_metrics.inference_tools_synth.input_tokens, turn_metrics.inference_tools_synth.output_tokens">0</span></div>
+            <div class="metric"><span class="metric-label">Input Cost</span><span class="metric-value" data-metric="turn_metrics.inference_tools_synth.cost_input">0</span></div>
+            <div class="metric"><span class="metric-label">Output Cost</span><span class="metric-value" data-metric="turn_metrics.inference_tools_synth.cost_output">0</span></div>
+            <div class="metric"><span class="metric-label">Inference #2 <b>Total</b> Cost</span><span class="metric-value" data-metric="turn_metrics.inference_tools_synth.cost_total">0</span></div>
+          </div>
+
+          <div class="metric sep"></div>
+ 
+         
+          <!-- Part 2: Total Conversation Metrics -->
+          <div style="flex-basis:100%;height:0"></div>
+          <div class="metrics-subsection-title">Total Conversation Metrics :</div>
+          <div class="metric"><span class="metric-label"> Cost</span><span id="conversation_total_cost" class="metric-value" data-metric="conversation_totals.costs.conversation_total">0</span></div>
+          <div class="metric"><span class="metric-label">Input Tokens</span><span id="conversation_input_tokens" class="metric-value" data-sum="conversation_totals.tokens.embedding, conversation_totals.tokens.llm_input">0</span></div>
+          <div class="metric"><span class="metric-label">Output Tokens</span><span id="conversation_output_tokens" class="metric-value" data-metric="conversation_totals.tokens.llm_output">0</span></div>
+        </section>
+
+        <div class="metrics-toggle-row">
+          <button
+            id="metrics_toggle"
+            type="button"
+            class="metrics-toggle"
+            aria-controls="metrics_bar"
+            aria-expanded="true"
+            aria-label="Collapse metrics"
+            title="Hide metrics"
+          >
+            <span class="metrics-toggle-label">Metrics</span>
+            <span id="metrics_toggle_arrow" aria-hidden="true">▲</span>
+          </button>
+        </div>
+
+        <!-- Scrollable chat history -->
+        <section id="chat_history" role="log" aria-live="polite" aria-label="Chat History"></section>
+
+        <!-- Input bar -->
+        <section id="input_bar" aria-label="Message Input">
+          <textarea id="chat_input" rows="1" placeholder="Type a message..." spellcheck="true"></textarea>
+          <button id="send_button" type="button" title="Send (Enter)">Send</button>
+        </section>
+      </main>
+    </div>
+
+    <!-- Models configuration modal (hidden by default) -->
+    <div id="models_modal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>Configure Models</h3>
+          <button id="models_modal_close" type="button" class="close-button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin:0 0 8px;font-size:11px;color:#64748b;">
+            The choice of models will impact responses and token costs. Please consult the relevant provider documentation.
+          </p>
+          <!-- Query Rewrite -->
+          <div class="modal-section">
+            <h4>Query Rewrite</h4>
+            <div class="form-field">
+              <label for="rewrite_model_select">Model Key</label>
+              <select id="rewrite_model_select" class="model-select"></select>
+            </div>
+          </div>
+
+          <!-- Reranker -->
+          <div class="modal-section">
+            <h4>Reranker</h4>
+            <div class="form-field">
+              <label for="rerank_model_select">Model Key</label>
+              <select id="rerank_model_select" class="model-select"></select>
+            </div>
+          </div>
+
+          <!-- Summarizer -->
+          <div class="modal-section">
+            <h4>Summarizer</h4>
+            <div class="form-field">
+              <label for="summary_model_select">Model Key</label>
+              <select id="summary_model_select" class="model-select"></select>
+            </div>
+          </div>
+
+          <!-- Inference -->
+          <div class="modal-section">
+            <h4>Inference</h4>
+            <div class="form-field">
+              <label for="inference_model_select">Model Key</label>
+              <select id="inference_model_select" class="model-select"></select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="models_modal_save" type="button" class="action-button">Save</button>
+          <button id="models_modal_cancel" type="button" class="secondary-button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="static/chat.js?v=20260623-compound-query-1"></script>
+    <script>
+      function toggleCollapsible(el, evt) {
+        try {
+          if (!el) return;
+          if (evt) {
+            const target = evt.target;
+            // Do not intercept clicks on nested interactive controls like Change Models or help links
+            if (target && (target.closest('.link-button') || target.closest('a.help-link'))) {
+              return;
+            }
+          }
+          const group = el.closest('.collapsible-group');
+          if (!group) return;
+          const collapsed = group.classList.toggle('is-collapsed');
+          el.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        } catch (e) {
+          console.debug('Failed to toggle collapsible group', e);
+        }
+      }
+
+      (function setupSidebarToggle() {
+        const app = document.getElementById('app');
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebar_toggle');
+        if (!app || !sidebar || !toggleBtn) return;
+
+        const setCollapsedState = (collapsed) => {
+          app.classList.toggle('sidebar-collapsed', collapsed);
+          toggleBtn.textContent = collapsed ? '▶' : '◀';
+          toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+          toggleBtn.setAttribute('aria-label', collapsed ? 'Expand parameters panel' : 'Collapse parameters panel');
+          toggleBtn.title = collapsed ? 'Show parameters' : 'Hide parameters';
+        };
+
+        toggleBtn.addEventListener('click', () => {
+          const collapsed = !app.classList.contains('sidebar-collapsed');
+          setCollapsedState(collapsed);
+        });
+
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        setCollapsedState(isMobile);
+      })();
+
+      (function setupMetricsToggle() {
+        const metricsBar = document.getElementById('metrics_bar');
+        const toggleBtn = document.getElementById('metrics_toggle');
+        const arrow = document.getElementById('metrics_toggle_arrow');
+        if (!metricsBar || !toggleBtn || !arrow) return;
+
+        const setCollapsedState = (collapsed) => {
+          metricsBar.classList.toggle('is-collapsed', collapsed);
+          arrow.textContent = collapsed ? '▼' : '▲';
+          toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+          toggleBtn.setAttribute('aria-label', collapsed ? 'Expand metrics' : 'Collapse metrics');
+          toggleBtn.title = collapsed ? 'Show metrics' : 'Hide metrics';
+        };
+
+        toggleBtn.addEventListener('click', () => {
+          const collapsed = !metricsBar.classList.contains('is-collapsed');
+          setCollapsedState(collapsed);
+        });
+
+        setCollapsedState(true);
+      })();
+    </script>
+  <footer class="text-center text-xs text-gray-500 mt-8">
+    <p>
+      Optional seed data derived from 
+      <a href="https://www.wikipedia.org/" target="_blank" class="underline">Wikipedia</a>,
+      licensed under 
+      <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" class="underline">CC BY-SA 4.0</a>.
+    </p>
+  </footer>
+  </body>
+  </html>

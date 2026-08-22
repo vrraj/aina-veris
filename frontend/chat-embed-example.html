@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat Embed Example</title>
+    <link rel="stylesheet" href="static/chat.css" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .page-container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px 16px 80px;
+      }
+      .page-header {
+        margin-bottom: 16px;
+      }
+      .page-header h1 {
+        font-size: 1.75rem;
+        margin: 0 0 8px;
+      }
+      .page-header p {
+        margin: 0;
+        font-size: 0.95rem;
+        color: #64748b;
+      }
+      .section {
+        margin-top: 24px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      .section h2 {
+        margin-top: 0;
+        font-size: 1.1rem;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-size: 0.75rem;
+        margin-right: 6px;
+      }
+      .domain-control {
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #475569;
+        font-size: 0.9rem;
+      }
+      .domain-control select {
+        min-width: 140px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #0f172a;
+      }
+      #chat-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 12px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        border: none;
+        background: #4f46e5;
+        color: #ffffff;
+        font-size: 0.95rem;
+        cursor: pointer;
+        box-shadow: 0 12px 30px rgba(79, 70, 229, 0.38);
+      }
+      #chat-toggle-btn:hover {
+        background: #4338ca;
+      }
+
+      /* Popup shell for the embedded chat */
+      #chat-embed-popup {
+        position: fixed;
+        bottom: 88px;
+        right: 24px;
+        width: 500px;
+        height: 625px;
+        max-width: 100%;
+        max-height: 80vh;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 22px 60px rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        overflow: hidden;
+        display: none;
+        z-index: 9999;
+      }
+      #chat-embed-popup iframe {
+        border: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-container">
+      <nav class="text-sm text-gray-600 mb-4 flex items-center">
+        <a href="/" style="text-decoration: none; border: none; background: none; padding: 0; margin: 0;">
+          <img src="/images/aina-markets-dark-on-white.png" alt="Aina Veris" style="width: 40px; height: 40px; margin-right: 8px; vertical-align: middle;">
+        </a>
+        <a href="/" class="hover:text-gray-900" style="text-decoration: none;">Aina Veris</a>
+        <span class="mx-2">→</span>
+        <span class="text-gray-900">Chat Embed Example</span>
+      </nav>
+      <hr class="border-gray-200 mb-4">
+      <header class="page-header">
+        <h1>Embeddable Chat Examples</h1>
+        <p>
+          This page demonstrates how to embed <code>chat-embed.html</code> using inline or popup approaches
+          with preset parameters passed via the query string or data attributes.
+        </p>
+        <div class="domain-control">
+          <label for="active_domain">Active Domain:</label>
+          <select id="active_domain">
+            <option value="">(global_defaults)</option>
+          </select>
+        </div>
+      </header>
+
+      <section class="section">
+        <h2>Method 1: Inline Chat (Embed Loader)</h2>
+        <ul>
+          <li>Uses embed-loader.js to dynamically create the iframe.</li>
+          <li>Configuration via data attributes on the script tag.</li>
+        </ul>
+
+        <p style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">
+          This method uses the same parameters but passed as data attributes:
+          <code>data-top_k="5"</code>, <code>data-max_output_tokens="256"</code>, 
+          <code>data-show_processing_steps="true"</code>, <code>data-show_sources="true"</code>, 
+          <code>data-namespace="example-script"</code>
+        </p>
+
+        <div style="margin-top: 16px; padding: 12px; background: #f1f5f9; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: #475569;">Embedded Chat (Inline):</h4>
+          <!-- Inline embed container -->
+          <div id="chat-embed-inline" style="height: 400px; border-radius: 8px; overflow: hidden; background: #ffffff; border: 1px solid #e2e8f0;"></div>
+        </div>
+
+        <!-- Embed loader script for inline embedding -->
+        <script src="static/embed-loader.js"
+                data-target="#chat-embed-inline"
+                data-top_k="5"
+                data-max_output_tokens="256"
+                data-show_processing_steps="true"
+                data-show_sources="true"
+                data-namespace="example-script"
+                data-width="100%"
+                data-height="100%">
+        </script>
+      </section>
+
+      <section class="section">
+        <h2>Method 2: Popup Chat (Direct iframe)</h2>
+        <ul>
+          <li>How to render a floating "Chat with us" button.</li>
+          <li>
+            How to override RAG parameters via the iframe URL, for example:
+            <code>top_k</code>, <code>max_output_tokens</code>, and
+            <code>show_processing_steps</code>.
+          </li>
+        </ul>
+
+        <p style="margin-top: 8px; font-size: 0.85rem; color: #64748b;">
+          This example uses:
+          <code>?top_k=5&amp;max_output_tokens=256&amp;show_processing_steps=true&amp;show_sources=true&amp;namespace=example-popup</code>
+          in the iframe <code>src</code>. You can change these query parameters to
+          adjust retrieval depth, output length, or whether processing steps are streamed.
+        </p>
+
+        <button id="chat-toggle-btn" type="button" style="padding: 0.75rem 1rem; border-radius: 6px; font-weight: 500; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; border: none; background-color: #f5f3ed; color: #111111;">
+          <span>Chat with us</span>
+        </button>
+      </section>
+    </div>
+
+    <!-- Popup container holding the embeddable chat UI -->
+    <div id="chat-embed-popup" aria-label="Embedded Chat Popup" style="position:fixed;bottom:88px;right:24px;width:360px;height:600px;max-width:100%;max-height:80vh;background:#ffffff;border-radius:16px;box-shadow:0 22px 60px rgba(15,23,42,0.5);border:1px solid rgba(148,163,184,0.6);overflow:hidden;display:none;z-index:9999;">
+      <button id="chat-embed-close"
+              type="button"
+              aria-label="Close chat"
+              style="position:absolute;top:8px;right:10px;border:none;background:transparent;color:#64748b;font-size:18px;cursor:pointer;z-index:10;">
+        ×
+      </button>
+      <iframe
+        src="/chat-embed.html?top_k=5&max_output_tokens=256&show_processing_steps=true&show_sources=true&namespace=example-popup"
+        title="Embedded Chat"
+        style="border:0;width:100%;height:100%;"></iframe>
+    </div>
+
+    <script>
+      (function () {
+        function getStoredActiveDomain() {
+          try {
+            return String(localStorage.getItem('active_domain') || '').trim();
+          } catch (_) {
+            return '';
+          }
+        }
+
+        function setStoredActiveDomain(domain) {
+          try {
+            const val = String(domain || '').trim();
+            if (val) {
+              localStorage.setItem('active_domain', val);
+            } else {
+              localStorage.removeItem('active_domain');
+            }
+          } catch (_) {}
+        }
+
+        function appendActiveDomainToIframe(iframe) {
+          if (!iframe) return;
+          const activeDomain = getStoredActiveDomain();
+
+          try {
+            const url = new URL(iframe.getAttribute('src') || iframe.src || '', window.location.origin);
+            if (activeDomain) {
+              url.searchParams.set('active_domain', activeDomain);
+            } else {
+              url.searchParams.delete('active_domain');
+            }
+            iframe.src = url.pathname + url.search + url.hash;
+          } catch (_) {
+            const src = iframe.getAttribute('src') || '';
+            if (!src || !activeDomain || src.indexOf('active_domain=') !== -1) return;
+            iframe.src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'active_domain=' + encodeURIComponent(activeDomain);
+          }
+        }
+
+        function syncEmbedIframes() {
+          appendActiveDomainToIframe(document.querySelector('#chat-embed-inline iframe'));
+          appendActiveDomainToIframe(document.querySelector('#chat-embed-popup iframe'));
+        }
+
+        function syncActiveDomainSelect(domain) {
+          const activeDomainSelect = document.getElementById('active_domain');
+          if (!activeDomainSelect) return;
+          activeDomainSelect.value = String(domain || '').trim();
+        }
+
+        async function initActiveDomainControl() {
+          const activeDomainSelect = document.getElementById('active_domain');
+          if (!activeDomainSelect) return;
+
+          try {
+            const resp = await fetch('/api/ui/runtime-context');
+            if (!resp.ok) throw new Error('Failed to fetch runtime context');
+            const ctx = await resp.json();
+            const domains = Array.isArray(ctx.domains) ? ctx.domains : [];
+            const backendDomain = String(ctx.active_domain || '').trim();
+
+            domains.forEach(function (domain) {
+              const opt = document.createElement('option');
+              opt.value = domain;
+              opt.textContent = domain;
+              activeDomainSelect.appendChild(opt);
+            });
+
+            const localDomain = getStoredActiveDomain();
+            const selected = localDomain && domains.includes(localDomain)
+              ? localDomain
+              : backendDomain;
+            syncActiveDomainSelect(selected);
+            if (selected) setStoredActiveDomain(selected);
+          } catch (_) {
+            syncActiveDomainSelect(getStoredActiveDomain());
+          }
+
+          activeDomainSelect.addEventListener('change', function () {
+            setStoredActiveDomain(activeDomainSelect.value);
+            syncEmbedIframes();
+          });
+
+          window.addEventListener('storage', function (event) {
+            if (event.key === 'active_domain') {
+              syncActiveDomainSelect(event.newValue);
+              syncEmbedIframes();
+            }
+          });
+
+          syncEmbedIframes();
+        }
+
+        initActiveDomainControl();
+
+        // Only handle the popup method (Method 1)
+        const toggle = document.getElementById('chat-toggle-btn');
+        const popup = document.getElementById('chat-embed-popup');
+        const closeBtn = document.getElementById('chat-embed-close');
+        
+        if (!toggle || !popup) return;
+
+        let isOpen = false;
+        function setOpen(next) {
+          isOpen = !!next;
+          popup.style.display = isOpen ? 'block' : 'none';
+        }
+
+        toggle.addEventListener('click', function () {
+          setOpen(!isOpen);
+        });
+
+        if (closeBtn) {
+          closeBtn.addEventListener('click', function () {
+            setOpen(false);
+          });
+        }
+
+        // Optional: close on Escape
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') {
+            setOpen(false);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "aina-openai-api-key-assignment"
+description = "OpenAI API key assigned to OPENAI_API_KEY"
+regex = '''(?im)^[ \t]*(?:export[ \t]+)?OPENAI_API_KEY[ \t]*=[ \t]*["']?([^"'\s#]{16,})'''
+secretGroup = 1
+keywords = ["OPENAI_API_KEY"]
+
+[[rules.allowlists]]
+regexes = [
+  '''(?i)^your[_-]openai[_-](api[_-])?key([_-]here)?$''',
+  '''(?i)^sk[-_]your[-_]openai[-_]key[-_]here$''',
+]
+
+[[rules]]
+id = "aina-openai-sk-token"
+description = "OpenAI-style sk token"
+regex = '''\b(sk[-_][a-zA-Z0-9_-]{16,})\b'''
+secretGroup = 1
+keywords = ["sk-", "sk_"]
+
+[[rules.allowlists]]
+regexes = [
+  '''(?i)^sk[-_]your[-_]openai[-_]key[-_]here$''',
+]
+
+[[rules]]
+id = "aina-gemini-api-key-assignment"
+description = "Gemini API key assigned to GEMINI_API_KEY"
+regex = '''(?im)^[ \t]*(?:export[ \t]+)?GEMINI_API_KEY[ \t]*=[ \t]*["']?([^"'\s#]{16,})'''
+secretGroup = 1
+keywords = ["GEMINI_API_KEY"]
+
+[[rules.allowlists]]
+regexes = [
+  '''(?i)^your[_-]gemini[_-](api[_-])?key([_-]here)?$''',
+]
+
+[[rules]]
+id = "aina-google-api-key"
+description = "Google or Gemini AIza API key"
+regex = '''\b(AIza[a-zA-Z0-9_-]{30,})\b'''
+secretGroup = 1
+keywords = ["AIza"]

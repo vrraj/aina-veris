@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retrieval Evals</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="/static/styles.css" rel="stylesheet">
+  <link href="/static/index-page.css" rel="stylesheet">
+</head>
+<body class="min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-7xl">
+    <nav class="text-sm text-gray-600 mb-4 flex items-center">
+      <a href="/" style="display: inline-block; text-decoration: none; border: none; background: none; padding: 0; margin: 0;">
+        <img src="/images/aina-markets-dark-on-white.png" alt="Aina Veris" style="width: 40px; height: 40px; margin-right: 8px;">
+      </a>
+      <a href="/" class="hover:text-gray-900">Aina Veris</a>
+      <span class="mx-2">→</span>
+      <span class="text-gray-900">Retrieval Evals</span>
+    </nav>
+    <hr class="border-gray-200 mb-4">
+    <h1 class="text-3xl font-semibold mb-6">Retrieval Evals (Dense / Sparse / Hybrid + ColBERT + Cross Encoder)</h1>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <form id="retrievalEvalForm" class="space-y-4">
+        <section class="border rounded p-4 space-y-4">
+          <h2 class="text-lg font-semibold text-gray-900">Section 1: Retriever</h2>
+          <p class="text-sm text-gray-600">Configure dense, sparse, or hybrid retrieval. Score threshold applies to dense mode.</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Domain</label>
+            <select id="activeDomain" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Search Mode</label>
+            <select id="searchMode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+              <option value="dense">dense</option>
+              <option value="sparse">sparse</option>
+              <option value="hybrid">hybrid</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Top-K Retrieval Items Per Query</label>
+            <input id="topK" type="number" min="1" value="8" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+          </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Search Query</label>
+            <textarea id="query" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="Ask your query..."></textarea>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="flex items-end gap-2">
+              <input id="splitCompoundQueries" type="checkbox" checked>
+              <label for="splitCompoundQueries" class="text-sm font-medium text-gray-700">Split Compound Query</label>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Maximum Subqueries</label>
+              <input id="maxCompoundQueries" type="number" min="2" max="8" value="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Score Threshold (Dense only)</label>
+              <input id="scoreThreshold" type="number" step="0.01" min="0" max="1" value="0.35" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">URL Filter (optional)</label>
+              <input id="urlFilter" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="https://...">
+            </div>
+            <div class="flex items-end gap-2">
+              <input id="withPayload" type="checkbox" checked>
+              <label for="withPayload" class="text-sm font-medium text-gray-700">Include Payload</label>
+            </div>
+            <div class="flex items-end gap-2">
+              <input id="exact" type="checkbox">
+              <label for="exact" class="text-sm font-medium text-gray-700">Exact Match</label>
+            </div>
+          </div>
+        </section>
+
+        <section class="border rounded p-4 space-y-4">
+          <h2 class="text-lg font-semibold text-gray-900">Section 2: Reranker</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="border rounded p-3 space-y-3">
+              <div class="flex items-center gap-2">
+                <input id="useColbert" type="checkbox">
+                <label for="useColbert" class="text-sm font-semibold text-gray-800">Enable Colbert Late interaction Rerank</label>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Colbert Top-N</label>
+                <input id="colbertTopN" type="number" min="1" value="8" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+              </div>
+            </div>
+
+            <div class="border rounded p-3 space-y-3">
+              <div class="flex items-center gap-2">
+                <input id="enableCrossEncoderRerank" type="checkbox" checked>
+                <label for="enableCrossEncoderRerank" class="text-sm font-semibold text-gray-800">Enable Cross Encoder Rerank</label>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Cross Encoder Top-N</label>
+                <input id="crossEncoderTopN" type="number" min="1" value="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+              </div>
+            </div>
+          </div>
+
+          <div class="border rounded p-3 space-y-3">
+            <div class="flex items-center gap-2">
+              <input id="ensureSubqueryCoverage" type="checkbox" checked>
+              <label for="ensureSubqueryCoverage" class="text-sm font-semibold text-gray-800">Ensure Subquery Coverage</label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Minimum Results Per Subquery</label>
+                <input id="minResultsPerSubquery" type="number" min="1" max="3" value="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Maximum Reserved Results</label>
+                <input id="coverageMaxReserved" type="number" min="1" max="20" value="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <button type="submit" id="runEvalBtn" class="w-full py-2 px-4 rounded-md">Run Retrieval Eval</button>
+      </form>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-6">
+      <section class="bg-white rounded-lg shadow p-4">
+        <button type="button" class="collapsible-header w-full text-left flex items-center justify-between" aria-expanded="true" onclick="toggleCollapsible(this, event)">
+          <h2 class="text-xl font-semibold m-0">Query Decomposition</h2>
+          <span class="chevron" aria-hidden="true">▼</span>
+        </button>
+        <div id="decompositionMeta" class="text-sm text-gray-700 mb-3 mt-4"></div>
+        <div class="collapsible-content" style="display: block;">
+          <pre id="decompositionQueries" class="text-xs bg-gray-50 border rounded p-3 overflow-auto"></pre>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg shadow p-4">
+        <button type="button" class="collapsible-header w-full text-left flex items-center justify-between" aria-expanded="true" onclick="toggleCollapsible(this, event)">
+          <h2 class="text-xl font-semibold m-0">Request Payload</h2>
+          <span class="chevron" aria-hidden="true">▼</span>
+        </button>
+        <div class="collapsible-content" style="display: block;">
+          <pre id="payloadPreview" class="text-xs bg-gray-50 border rounded p-3 overflow-auto max-h-80 mt-4"></pre>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg shadow p-4">
+        <button type="button" class="collapsible-header w-full text-left flex items-center justify-between" aria-expanded="false" onclick="toggleCollapsible(this, event)">
+          <h2 class="text-xl font-semibold m-0">Section 1: Retrieval Results</h2>
+          <span class="chevron" aria-hidden="true">▲</span>
+        </button>
+        <div id="retrievalMeta" class="text-sm text-gray-700 mb-3 mt-4"></div>
+        <div class="collapsible-content" style="display: none;">
+          <div id="retrievalResults" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg shadow p-4">
+        <button type="button" class="collapsible-header w-full text-left flex items-center justify-between" aria-expanded="false" onclick="toggleCollapsible(this, event)">
+          <h2 class="text-xl font-semibold m-0">Section 3: ColBERT Results</h2>
+          <span class="chevron" aria-hidden="true">▲</span>
+        </button>
+        <div id="colbertMeta" class="text-sm text-gray-700 mb-3 mt-4"></div>
+        <div class="collapsible-content" style="display: none;">
+          <div id="colbertResults" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-lg shadow p-4">
+        <button type="button" class="collapsible-header w-full text-left flex items-center justify-between" aria-expanded="false" onclick="toggleCollapsible(this, event)">
+          <h2 class="text-xl font-semibold m-0">Section 4: Cross-Encoder Reranked Results</h2>
+          <span class="chevron" aria-hidden="true">▲</span>
+        </button>
+        <div id="rerankMeta" class="text-sm text-gray-700 mb-3 mt-4"></div>
+        <div id="coverageMeta" class="text-sm text-indigo-700 mb-3"></div>
+        <div class="collapsible-content" style="display: none;">
+          <div id="rerankResults" class="space-y-3"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/static/retrieval-evals.js"></script>
+</body>
+</html>

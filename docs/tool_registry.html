@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Tool Registry Guide</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <hr>
+<h2 id="layout-defaulttitle-tool-registry-guidedescription-configure-tools-and-safely-inject-tool-produced-artifacts-into-aina-veris-responses">layout: default
+title: &quot;Tool Registry Guide&quot;
+description: &quot;Configure tools and safely inject tool-produced artifacts into Aina Veris responses.&quot;</h2>
+<h1 id="tool-registry-guide">Tool Registry Guide</h1>
+<p>The Tool Registry controls which tools are available to the chat pipeline and, when applicable, how a tool-produced visual artifact is added to the final response. The editor at <code>/tool-registry</code> saves changes to <code>prompts/tool_registry.yaml</code> and creates a <code>.bak</code> backup before replacing it.</p>
+<h2 id="everyday-workflow">Everyday workflow</h2>
+<ol>
+<li>Select a tool and enable or disable it.</li>
+<li>For a normal data tool, leave <strong>Produces Artifact</strong> disabled.</li>
+<li>For a tool that returns a visual payload, enable <strong>Produces Artifact</strong> and complete the artifact contract.</li>
+<li>Select <strong>Save Changes</strong>. The editor validates the registry, writes the YAML, and clears its cache.</li>
+<li>Use <strong>Reload</strong> to discard unsaved edits and read the current file. Use <strong>Reload Cache</strong> when the YAML was edited outside the editor.</li>
+</ol>
+<p>Changes take effect for the next tool synthesis request; they do not modify a response already in progress.</p>
+<h2 id="what-an-artifact-is">What an artifact is</h2>
+<p>An artifact is a displayable payload returned by a tool, currently most commonly an SVG chart. It is deliberately kept out of the language-model synthesis input. Instead, the system validates and sanitizes it, then inserts it into the final response.</p>
+<p>The flow is:</p>
+<p><code>Tool response</code> → <code>extract payload by artifact_key</code> → <code>validate policy and sanitize SVG</code> → <code>replace placeholder or append verbatim</code> → <code>final response</code></p>
+<p>For registry-configured artifacts, injection occurs only when all of these conditions are met:</p>
+<ul>
+<li>Artifact injection is enabled.</li>
+<li>The tool is listed in <strong>Allowed Artifact Tools</strong> (or the list is intentionally empty).</li>
+<li>The tool’s artifact contract says it produces an artifact.</li>
+<li>Its type and injection mode are allowed by the global policy.</li>
+<li>The payload is within the configured size limit and passes SVG safety checks.</li>
+</ul>
+<h2 id="artifact-contract-fields">Artifact contract fields</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Produces Artifact</td>
+<td>Marks a tool as returning a displayable payload.</td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td>Artifact Type</td>
+<td>The payload format. It must be globally allowed.</td>
+<td><code>svg</code></td>
+</tr>
+<tr>
+<td>Artifact Key</td>
+<td>The field in the tool’s JSON output containing the payload.</td>
+<td><code>svg</code></td>
+</tr>
+<tr>
+<td>Injection Mode</td>
+<td>How the payload is added to the response.</td>
+<td><code>verbatim</code></td>
+</tr>
+<tr>
+<td>Placeholder Token</td>
+<td>The token the response uses to place the artifact.</td>
+<td><code>{{ARTIFACT:stock_chart_svg}}</code></td>
+</tr>
+</tbody>
+</table>
+<p>With the contract above, an output such as <code>{&quot;svg&quot;: &quot;&lt;svg&gt;…&lt;/svg&gt;&quot;}</code> supplies the payload. If the generated answer includes <code>{{ARTIFACT:stock_chart_svg}}</code>, the final response replaces that token with the sanitized SVG. With <code>verbatim</code>, the system appends the payload when no placeholder is present.</p>
+<h2 id="global-artifact-policy">Global artifact policy</h2>
+<p>The policy applies to every artifact-producing tool:</p>
+<ul>
+<li><strong>Artifact Injection Enabled</strong>: master switch for all artifact insertion.</li>
+<li><strong>Allowed Artifact Tools</strong>: tool-name allowlist. Keep this limited to tools you trust to return visual output.</li>
+<li><strong>Max Artifact Chars</strong>: maximum size for one payload. Larger payloads are ignored.</li>
+<li><strong>Allowed Artifact Types</strong>: accepted formats. The current safe default is <code>svg</code>.</li>
+<li><strong>Allowed Injection Modes</strong>: accepted placement behaviors. The current safe default is <code>verbatim</code>.</li>
+<li><strong>Enforce Placeholder Format</strong>: requires <code>{{ARTIFACT:name}}</code>, where <code>name</code> uses letters, numbers, dots, underscores, colons, or hyphens.</li>
+</ul>
+<h2 id="example">Example</h2>
+<pre><code class="language-yaml"><span class="hljs-attr">artifact_injection:</span>
+  <span class="hljs-attr">enabled:</span> <span class="hljs-literal">true</span>
+  <span class="hljs-attr">allowed_tools:</span>
+    <span class="hljs-bullet">-</span> <span class="hljs-string">get_stock_price_history</span>
+  <span class="hljs-attr">security:</span>
+    <span class="hljs-attr">max_artifact_chars:</span> <span class="hljs-number">120000</span>
+    <span class="hljs-attr">allowed_artifact_types:</span> [<span class="hljs-string">svg</span>]
+    <span class="hljs-attr">allowed_injection_modes:</span> [<span class="hljs-string">verbatim</span>]
+    <span class="hljs-attr">enforce_placeholder_format:</span> <span class="hljs-literal">true</span>
+
+<span class="hljs-attr">tools:</span>
+  <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">get_stock_price_history</span>
+    <span class="hljs-attr">enabled:</span> <span class="hljs-literal">true</span>
+    <span class="hljs-attr">runtime:</span>
+      <span class="hljs-attr">endpoint:</span>
+        <span class="hljs-attr">type:</span> <span class="hljs-string">mcp</span>
+        <span class="hljs-attr">url:</span> <span class="hljs-string">http://host.docker.internal:9001/mcp</span>
+        <span class="hljs-attr">tool:</span> <span class="hljs-string">get_stock_price_history</span>
+    <span class="hljs-attr">artifact:</span>
+      <span class="hljs-attr">produces_artifact:</span> <span class="hljs-literal">true</span>
+      <span class="hljs-attr">artifact_type:</span> <span class="hljs-string">svg</span>
+      <span class="hljs-attr">artifact_key:</span> <span class="hljs-string">svg</span>
+      <span class="hljs-attr">injection_mode:</span> <span class="hljs-string">verbatim</span>
+      <span class="hljs-attr">placeholder:</span> <span class="hljs-string">&quot;<span class="hljs-template-variable">{{ARTIFACT:stock_chart_svg}}</span>&quot;</span>
+</code></pre>
+<h2 id="adding-and-managing-tools">Adding and managing tools</h2>
+<p>Each tool needs a unique <code>name</code>, an <code>enabled</code> flag, and a <code>runtime.endpoint</code> with a <code>type</code> and <code>url</code>. MCP tools additionally identify the remote tool with <code>runtime.endpoint.tool</code>. Keep runtime and connection settings in the YAML/configuration; do not place credentials in this file.</p>
+<p>The editor currently manages enabled status and artifact metadata. Add or change a tool’s runtime endpoint directly in <code>prompts/tool_registry.yaml</code>, then use <strong>Reload Cache</strong> (or restart the application) before testing it.</p>
+<h2 id="safety-notes">Safety notes</h2>
+<p>Treat every artifact-producing tool as a trusted integration. SVG payloads are size-limited, reject known active-content patterns, and are sanitized before insertion. Keep the allowed tool and artifact-type lists narrow, use distinct placeholders, and test a new tool with a small payload before enabling it in production.</p>
+
+            
+            
+        </body>
+        </html>

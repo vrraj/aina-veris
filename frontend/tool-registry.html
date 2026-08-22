@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tool Registry Editor</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="/static/index-page.css" rel="stylesheet">
+</head>
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <nav class="text-sm text-gray-600 mb-4 flex items-center">
+      <a href="/" style="display: inline-block; text-decoration: none; border: none; background: none; padding: 0; margin: 0;">
+        <img src="/images/aina-markets-dark-on-white.png" alt="Aina Veris" style="width: 40px; height: 40px; margin-right: 8px;">
+      </a>
+      <a href="/" class="hover:text-gray-900">Aina Veris</a>
+      <span class="mx-2">→</span>
+      <span class="text-gray-900">Tool Registry</span>
+    </nav>
+    <hr class="border-gray-200 mb-4">
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold text-gray-900">Tool Registry Editor</h1>
+          <p id="registryMeta" class="text-sm text-gray-600 mt-1">Loading tool registry...</p>
+          <a href="/docs/tool_registry.html" target="_blank" rel="noopener noreferrer" class="inline-block text-sm text-indigo-700 hover:text-indigo-900 hover:underline mt-2">Read the Tool Registry guide</a>
+        </div>
+        <div class="flex gap-2">
+          <button id="reloadBtn" class="px-3 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300">Reload</button>
+          <button id="reloadCacheBtn" class="px-3 py-2 rounded bg-purple-100 text-purple-800 hover:bg-purple-200">Reload Cache</button>
+          <button id="saveBtn" class="px-3 py-2 rounded">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Artifact Injection Policy</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label class="text-sm text-gray-700">
+          <span class="block mb-1">Artifact Injection Enabled <span title="Controls whether eligible tool artifacts can be inserted into the final response." aria-label="Controls whether eligible tool artifacts can be inserted into the final response.">?</span></span>
+          <input id="artifactInjectionEnabled" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+        </label>
+        <label class="text-sm text-gray-700 md:col-span-2">
+          <span class="block mb-1">Allowed Artifact Tools (comma-separated) <span title="Only these registered tools may contribute artifacts. Leave the list empty only when you intentionally allow every artifact-producing tool." aria-label="Only these registered tools may contribute artifacts.">?</span></span>
+          <input id="artifactAllowedTools" type="text" placeholder="get_timeseries_sparklines_svg" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+        </label>
+        <label class="text-sm text-gray-700">
+          <span class="block mb-1">Max Artifact Chars <span title="Maximum accepted size of a single artifact payload. Oversized payloads are discarded." aria-label="Maximum accepted size of a single artifact payload.">?</span></span>
+          <input id="artifactMaxChars" type="number" min="1" step="1" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+        </label>
+        <label class="text-sm text-gray-700">
+          <span class="block mb-1">Enforce Placeholder Format <span title="Requires placeholders to use the {{ARTIFACT:name}} format before an artifact can be injected." aria-label="Requires the standard artifact placeholder format.">?</span></span>
+          <input id="artifactEnforcePlaceholder" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+        </label>
+        <label class="text-sm text-gray-700 md:col-span-2">
+          <span class="block mb-1">Allowed Artifact Types (comma-separated) <span title="Only these artifact formats are eligible for injection. SVG is currently the supported safe format." aria-label="Only these artifact formats are eligible for injection.">?</span></span>
+          <input id="artifactAllowedTypes" type="text" placeholder="svg" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+        </label>
+        <label class="text-sm text-gray-700 md:col-span-2">
+          <span class="block mb-1">Allowed Injection Modes (comma-separated) <span title="Controls how the artifact is added to the response. Verbatim inserts the sanitized payload unchanged." aria-label="Controls how the artifact is added to the response.">?</span></span>
+          <input id="artifactAllowedModes" type="text" placeholder="verbatim" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+        </label>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div class="bg-white rounded-lg shadow p-4">
+        <label for="toolSelect" class="block text-sm font-medium text-gray-700 mb-2">Tool</label>
+        <select id="toolSelect" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"></select>
+        <p id="toolEnabledWrap" class="text-sm text-gray-700 mt-3">
+          <label class="inline-flex items-center">
+            <input id="toolEnabled" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+            <span class="ml-2">Enabled</span>
+          </label>
+        </p>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-4 lg:col-span-2">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Artifact Injection Contract</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label class="text-sm text-gray-700">
+            <span class="block mb-1">Produces Artifact <span title="Enable only when this tool returns a displayable payload such as an SVG chart." aria-label="Enable only when this tool returns a displayable payload.">?</span></span>
+            <input id="producesArtifact" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+          </label>
+          <label class="text-sm text-gray-700">
+            <span class="block mb-1">Artifact Type <span title="The payload format returned by the tool, for example svg. It must be allowed by the global policy." aria-label="The payload format returned by the tool.">?</span></span>
+            <input id="artifactType" type="text" placeholder="svg" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-sm text-gray-700">
+            <span class="block mb-1">Artifact Key (tool output field) <span title="The field name in the tool's JSON response that contains the artifact payload, for example svg." aria-label="The tool output field containing the artifact payload.">?</span></span>
+            <input id="artifactKey" type="text" placeholder="svg" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-sm text-gray-700">
+            <span class="block mb-1">Injection Mode <span title="How the payload is inserted into the final answer. Use verbatim for a sanitized SVG payload." aria-label="How the payload is inserted into the final answer.">?</span></span>
+            <input id="injectionMode" type="text" placeholder="verbatim" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-sm text-gray-700 md:col-span-2">
+            <span class="block mb-1">Placeholder Token <span title="The token the response can include where the artifact belongs, for example {{ARTIFACT:stock_chart_svg}}." aria-label="The token marking where the artifact belongs.">?</span></span>
+            <input id="placeholder" type="text" placeholder="{{ARTIFACT:chart_svg}}" class="w-full rounded border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+      <div class="flex items-baseline justify-between gap-3 mb-2">
+        <h2 class="text-lg font-semibold text-gray-900">Available Tool Catalog</h2>
+        <span class="text-xs text-gray-500">Registry tools and cached MCP discovery</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-left">
+          <thead class="border-b text-gray-600">
+            <tr>
+              <th class="py-2 pr-4 font-medium">Tool</th>
+              <th class="py-2 pr-4 font-medium">Source</th>
+              <th class="py-2 pr-4 font-medium">Registry Override</th>
+              <th class="py-2 font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody id="discoveredTools" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+      <h2 class="text-lg font-semibold text-gray-900 mb-2">Raw Registry Preview</h2>
+      <textarea id="rawPreview" readonly class="w-full h-64 rounded border-gray-300 bg-gray-50 text-sm font-mono p-3"></textarea>
+    </div>
+
+    <div id="status" class="text-sm"></div>
+  </div>
+
+  <script src="/static/tool-registry.js"></script>
+</body>
+</html>

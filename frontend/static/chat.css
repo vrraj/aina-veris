@@ -1,0 +1,700 @@
+/* Minimal, readable UI shell styles. Light theme. */
+:root {
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --surface: #ffffff;
+  --muted: #64748b; /* slate-500 */
+  --text: #0f172a;  /* slate-900 */
+  --accent: #166534; /* green-800 */
+  --border: #e5e7eb; /* gray-200 */
+  --badge-bg: #eef2f7;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+#app { display: flex; height: 100vh; position: relative; }
+
+/* Sidebar: ~21% width, scrollable if needed */
+#sidebar {
+  flex: 0 0 21%;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 16px 14px;
+  overflow: auto;
+  transition: width 0.24s ease, min-width 0.24s ease, max-width 0.24s ease, padding 0.24s ease, border-color 0.24s ease;
+}
+
+.sidebar-toggle {
+  align-self: center;
+  margin: 0 8px;
+  width: 24px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  background: #eef2ff;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#app.sidebar-collapsed #sidebar {
+  flex-basis: 0;
+  min-width: 0;
+  max-width: 0;
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-color: transparent;
+  overflow: hidden;
+}
+.section-title { margin: 0 0 12px; font-weight: 600; font-size: 14px; color: var(--muted); }
+
+/* New grouped box for parameter sections (Retrieval/Inference) */
+.group-box {
+  display: block;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.collapsible-group {
+  padding-top: 6px;
+}
+.collapsible-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 0 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.collapsible-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.collapsible-body {
+  margin-top: 2px;
+}
+.collapsible-group.is-collapsed .collapsible-body {
+  display: none;
+}
+.collapsible-header .chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.collapsible-group.is-collapsed .collapsible-header .chevron {
+  transform: rotate(180deg);
+}
+.subsection-title {
+  margin: 0 0 1px;
+  font-weight: 600;
+  font-size: 12px; /* smaller than main Parameters title */
+  color: var(--muted);
+}
+
+.metrics-subsection-title {
+  margin: 0 0 1px;
+  font-weight: 500;
+  font-size: 14px; /* smaller than main Parameters title */
+  color: var(--muted);
+}
+
+.model-value {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+/* Form field tweaks for Rewrite row to keep inline layout */
+.form-field.rewrite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.model-value {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+/* Make form fields in Models section non-interactive */
+#models_info .form-field {
+  pointer-events: none;
+}
+
+/* Unboxed individual fields inside a group */
+.form-field {
+  display: grid;                 /* consistent column alignment */
+  grid-template-columns: var(--label-col, 95px) 9ch; /* label width set via JS to Score Threshold */
+  align-items: center;
+  column-gap: 8px;
+  margin-bottom: 10px;
+}
+.form-field:last-child { margin-bottom: 0; }
+
+.form-field.checkbox-field {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.form-field.checkbox-field > input[type="checkbox"] {
+  margin-top: 2px;
+}
+
+.form-field.checkbox-field > label {
+  width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Optional variant retains same grid for row style */
+.form-field.field-row { grid-template-columns: var(--label-col, 95px) auto; }
+
+/* Labels can wrap to two lines if longer than reference */
+.form-field > label { overflow-wrap: anywhere; text-align: left; width: 100%; }
+/* Fixed input width sized to ~7 chars; box-sizing keeps borders within width */
+.form-field input[type="number"] {
+  width: 11ch;
+  min-width: 11ch;
+}
+.form-field input[type="checkbox"] { justify-self: start; }
+label { color: var(--muted); font-size: 11px; }
+
+/* Help link near label */
+.help-link {
+  margin-left: 1px;
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: underline;
+}
+.help-link:hover { opacity: 0.9; }
+
+/* Simple popover for Tools Help */
+.popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  transform: translateY(6px);
+  max-width: 340px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  z-index: 9999;
+}
+
+/* Scoped layout for Models section: vertical stack and full-width values */
+#models_section .model-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+#models_section .model-row .model-value {
+  width: 100%;
+  display: block;
+}
+
+/* UX tweak: reduce font size for inputs in Retriever, Query Rewrite, Summarizer, Inference blocks */
+.ux-11px .form-field input,
+.ux-11px .form-field textarea,
+.ux-11px .form-field select {
+  font-size: 11px;
+}
+.popover .title { font-weight: 600; margin: 0 0 6px; font-size: 13px; }
+.popover .tool { margin: 8px 0; }
+.popover .tool-name { font-weight: 600; font-size: 12px; }
+.popover .tool-desc { color: var(--muted); font-size: 12px; margin: 2px 0 4px; }
+.popover code { font-size: 12px; background: #f8fafc; padding: 1px 4px; border-radius: 4px; }
+input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+input[type="number"]:focus { outline: none; border-color: var(--accent); }
+
+/* Link-style button used for Change Models */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-button:hover { opacity: 0.9; }
+
+/* Simple modal/backdrop for Models configuration */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45); /* slate overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-dialog {
+  background: var(--surface);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  max-width: 768px;
+  width: 100%;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.25);
+  padding: 12px 14px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 2px 8px;
+}
+
+/* Make form fields in the modal stack vertically and use wider controls */
+.modal-section .form-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  padding-left: 12px; /* indent fields under each stage heading */
+}
+
+.modal-section .form-field label {
+  margin-bottom: 4px;
+}
+
+.modal-section .form-field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.modal-section + .modal-section {
+  margin-top: 10px;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.secondary-button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Main column */
+#main { flex: 1; display: flex; flex-direction: column; height: 100vh; gap: 12px; padding: 12px; }
+
+.metrics-toggle-row {
+  display: flex;
+  justify-content: center;
+}
+
+.metrics-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.metrics-toggle:hover {
+  background: #eef2ff;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.metrics-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.metrics-toggle-label {
+  font-weight: 600;
+}
+
+/* Metrics bar: read-only placeholders */
+#metrics_bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  max-height: 320px;
+  overflow: hidden;
+  transition: max-height 0.24s ease, padding-top 0.24s ease, padding-bottom 0.24s ease, border-color 0.24s ease, opacity 0.2s ease;
+}
+
+#metrics_bar.is-collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+  opacity: 0;
+}
+
+/* Compact metrics spacing */
+#metrics_bar.metrics-compact { 
+  --metric-font: 12px; 
+  --metric-group-label-font: 13px;
+  padding-top: 2px; 
+  padding-bottom: 2px; 
+}
+#metrics_bar .metric[hidden] { 
+  display: none !important; 
+}
+#metrics_bar.metrics-compact .metric {
+  line-height: 1.88;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+#metrics_bar.metrics-compact .metric.group-label { 
+  margin-top: 1px; 
+  margin-bottom: 0; 
+  font-size: var(--metric-group-label-font); 
+}
+#metrics_bar.metrics-compact .metric.sep { 
+  height: 4px; 
+}
+#metrics_bar.metrics-compact .metric .metric-label,
+#metrics_bar.metrics-compact .metric .metric-value { 
+  font-size: var(--metric-font); 
+}
+
+.metric { 
+  display: inline-flex; 
+  gap: 6px; 
+  align-items: baseline; 
+}
+.metric.sep { 
+  width: 1px; 
+  height: 16px; 
+  background: var(--border); 
+  margin: 0 4px; 
+}
+.metric-label { 
+  color: var(--muted); 
+  font-size: 12px; 
+}
+.metric-value { 
+  color: var(--text); 
+  font-variant-numeric: tabular-nums; 
+}
+
+/* Chat history */
+#chat_history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+/* Assistant reasoning toggle/panel */
+.msg.assistant .reasoning-toggle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.msg.assistant .reasoning-toggle:hover {
+  text-decoration: underline;
+}
+
+.msg.assistant .reasoning-panel {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.msg { display: flex; gap: 8px; margin: 8px 0; max-width: 75%; }
+.msg.user { margin-left: auto; justify-content: flex-end; }
+.msg.assistant { margin-right: auto; }
+
+.badge {
+  align-self: flex-start;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #1f2937;
+  background: var(--badge-bg);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.bubble {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  white-space: pre-wrap; /* keep user newlines */
+}
+.msg.user .bubble { background: #eff6ff; border-color: #bfdbfe; }
+.msg.assistant .bubble { background: none; border: none; padding: 5px 7px; }
+
+/* Tighter spacing for backend-rendered HTML/Markdown inside assistant bubbles */
+ .msg.assistant .bubble.markdown {
+   white-space: normal;
+ }
+ .msg.assistant .bubble.markdown p,
+ .msg.assistant .bubble.markdown ul,
+ .msg.assistant .bubble.markdown ol,
+ .msg.assistant .bubble.markdown pre,
+ .msg.assistant .bubble.markdown blockquote {
+   margin: 0 0 8px;
+ }
+ .msg.assistant .bubble.markdown p:last-child,
+ .msg.assistant .bubble.markdown ul:last-child,
+ .msg.assistant .bubble.markdown ol:last-child,
+ .msg.assistant .bubble.markdown pre:last-child,
+ .msg.assistant .bubble.markdown blockquote:last-child {
+   margin-bottom: 0;
+ }
+ .msg.assistant .bubble.markdown li {
+   margin: 2px 0;
+ }
+
+ /* Tighten markdown list layout: Python-Markdown often renders li>p which adds extra vertical gaps */
+ .msg.assistant .bubble.markdown li > p {
+   margin: 0;
+ }
+
+ .msg.assistant .bubble.markdown li > ul,
+ .msg.assistant .bubble.markdown li > ol {
+   margin-top: 4px;
+   margin-bottom: 4px;
+ }
+
+ .msg.assistant .bubble.markdown ul,
+ .msg.assistant .bubble.markdown ol {
+   padding-left: 18px;
+ }
+
+ .msg.assistant .bubble.markdown ul,
+ .msg.assistant .bubble.markdown ol ul,
+ .msg.assistant .bubble.markdown li > ul {
+   list-style-type: disc;
+ }
+
+ .msg.assistant .bubble.markdown li:empty {
+   display: none;
+ }
+ .msg.assistant .bubble.markdown h1,
+ .msg.assistant .bubble.markdown h2,
+ .msg.assistant .bubble.markdown h3,
+ .msg.assistant .bubble.markdown h4,
+ .msg.assistant .bubble.markdown h5,
+ .msg.assistant .bubble.markdown h6 {
+   margin: 10px 0 6px;
+ }
+ .msg.assistant .bubble.markdown h1:first-child,
+ .msg.assistant .bubble.markdown h2:first-child,
+ .msg.assistant .bubble.markdown h3:first-child,
+ .msg.assistant .bubble.markdown h4:first-child,
+ .msg.assistant .bubble.markdown h5:first-child,
+ .msg.assistant .bubble.markdown h6:first-child {
+   margin-top: 0;
+ }
+
+ .msg.assistant .bubble.markdown .sources {
+   margin: 0 0 8px;
+ }
+
+ /* Thoughts dropdown (backend reasoning) */
+ .msg.assistant .bubble.markdown details.thoughts {
+   margin: 0 0 10px;
+ }
+
+ .msg.assistant .bubble.markdown details.thoughts > summary {
+   cursor: pointer;
+   user-select: none;
+ }
+
+ .msg.assistant .bubble.markdown details.thoughts > pre {
+   max-height: 180px;
+   overflow: auto;
+   white-space: pre-wrap;
+   margin: 8px 0 0;
+   padding-bottom: 10px;
+   border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+ }
+
+/* Table alignment and spacing fixes */
+ .msg.assistant .bubble.markdown table {
+   margin: 1em 0;
+   background-color: rgb(240, 244, 249);
+ }
+ .msg.assistant .bubble.markdown .md-table-wrap {
+   padding-left: 8px;
+ }
+ .msg.assistant .bubble.markdown table th,
+ .msg.assistant .bubble.markdown table td {
+   text-align: left;
+   vertical-align: top;
+   padding-left: 8px;
+   padding-right: 5px;
+   padding-top: 5px;
+   padding-bottom: 4px;
+ }
+
+/* Dimmed tools-used indicator under assistant messages */
+.tools-used {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Action Buttons - AxioLex UI Style Guide */
+.action-button {
+  padding: 6px 12px;
+  border: 1px solid #e5e5e5;
+  background-color: #f5f3ed; /* beige-bg */
+  color: #111111; /* primary-black */
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.action-button:hover {
+  background-color: #e8e4dc; /* beige-hover */
+  border-color: #d5d5d5;
+}
+
+.action-button:active {
+  background-color: #dcd6c9; /* darker beige for active state */
+  transform: translateY(1px);
+}
+
+/* Button group for action buttons */
+.button-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+/* Input bar */
+#input_bar {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+#chat_input {
+  flex: 1;
+  min-height: 36px; /* 1 line */
+  max-height: 120px; /* ~ up to 4 lines depending on line-height */
+  resize: none; /* auto-resized via JS */
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+#chat_input:focus { outline: none; border-color: var(--accent); }
+
+#send_button {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e5e5e5;
+  background: #f5f3ed; /* beige-bg */
+  color: #111111; /* primary-black */
+  cursor: pointer;
+}
+#send_button:hover { border-color: #d5d5d5; background: #e8e4dc; /* beige-hover */ }
+
+/* Reduce motion/overscroll artifacts */
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}

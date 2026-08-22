@@ -1,0 +1,40 @@
+/* Search Results - AxioLex UI Style Guide */
+.search-result {
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: white;
+}
+
+.search-result .metadata {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 0.5rem;
+}
+
+.search-result .chunk-content {
+    color: #111;
+    line-height: 1.5;
+    font-size: 16px;
+}
+
+.search-result .url {
+    color: #1f5faa;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.search-result .url:hover {
+    opacity: 0.8;
+}
+
+/* Search results container */
+#search-results {
+    max-height: 3000px;
+    overflow-y: auto;
+}
+
+#search-results > .muted {
+    min-height: 36px;
+}
