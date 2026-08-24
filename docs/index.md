@@ -26,6 +26,14 @@ The access surface is separate from the research runtime. A server-owned agent
 or domain configuration controls the collection, prompt policy, retrieval
 strategy, model path, tools, and response constraints.
 
+## One runtime for agents, applications, and operators
+
+Aina-Veris exposes the same domain-scoped research runtime through A2A agents,
+MCP tools over Streamable HTTP and stdio, REST APIs, and embeddable chat.
+Human operators can use the included workspace to configure domains, prompts,
+models, and tools; inspect pipeline execution; test research behavior; and
+evaluate retrieval independently of answer generation.
+
 ## Research pipeline
 
 <p align="center">
