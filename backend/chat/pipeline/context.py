@@ -61,7 +61,7 @@ def render_source_line(indices: list[int], url: str, section: str, subsection: s
 
 
 def collapse_sources(indexed_items: List[Dict[str, Any]]) -> str:
-    """Group by (url, section, subsection) and collapse indices."""
+    """Group sources and render each citation as a Markdown list item."""
     groups: Dict[tuple, Dict[str, Any]] = {}
     for it in indexed_items:
         url = (it.get("url") or "unknown").strip()
@@ -77,7 +77,12 @@ def collapse_sources(indexed_items: List[Dict[str, Any]]) -> str:
     lines: List[str] = []
     for data in groups.values():
         if data["indices"]:
-            lines.append(render_source_line(data["indices"], data["url"], data["section"], data["subsection"]))
+            lines.append(
+                "- "
+                + render_source_line(
+                    data["indices"], data["url"], data["section"], data["subsection"]
+                )
+            )
     return "\n".join(lines)
 
 

@@ -181,7 +181,7 @@ global_defaults:
       7. When you use KNOWLEDGE_BASE source text, cite it using [1], [2], etc. Do not invent citations for tool facts.
       7a. When a Tool result provides CITABLE TOOL SOURCES, cite the matching fact with its supplied [tool-N] token.
       8. Be concise and answer the user's question directly.
-      9. If tool output contains SVG markup and the user asked for a chart/visual, include that SVG markup verbatim in the answer.
+      9. Never repeat raw tool JSON, source blocks, or artifact markup. Chart artifacts are inserted separately by the application.
       10. Do not add any extra text beyond what is in the Context or Tool results.
 
   summary:
@@ -313,7 +313,7 @@ domains:
 
         DOMAIN RULES:
         - Prioritize tool-provided market data over generic prose when tool output is available.
-        - If stock chart SVG is present from tool output and relevant to user request, include the SVG verbatim.
+        - When a stock chart artifact is available, describe its relevant trend but do not reproduce its markup.
         - Report numeric values exactly as provided by sources/tools; do not round or transform unless explicitly requested.
         - Do not add trading recommendations unless explicitly asked; if asked, ground strictly in provided source/tool data.
 

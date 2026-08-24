@@ -131,7 +131,7 @@ def run_final_response_stage(
             if cited_web_indices and web_context:
                 web_notes = "\n" + "\n".join(
                     [
-                        f"[web-{index}] {web_context[index - 1].get('url', 'Web result')}"
+                        f"- [web-{index}] {web_context[index - 1].get('url', 'Web result')}"
                         for index in sorted(cited_web_indices)
                         if 1 <= index <= len(web_context)
                     ]
@@ -157,7 +157,7 @@ def run_final_response_stage(
                     if index in cited_tool_indices
                 ]
                 tool_notes = "\n" + "\n".join(
-                    f"[tool-{index}] {source.get('url', 'Tool result')}"
+                    f"- [tool-{index}] {source.get('url', 'Tool result')}"
                     for index, source in enumerate(tool_sources, start=1)
                     if index in cited_tool_indices
                 )

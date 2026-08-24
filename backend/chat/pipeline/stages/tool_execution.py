@@ -63,11 +63,32 @@ def _is_insufficient_synthesis(answer: str) -> bool:
 
 
 def _format_tool_fallback(tool_answer_text: str, tools_text: str) -> str:
+    """Return a safe, readable fallback without exposing raw tool payloads."""
+    summaries: List[str] = []
+    for block in re.split(r"\n\n(?=\[SOURCE: TOOL - )", str(tools_text or "")):
+        _header, separator, output = block.partition("\n")
+        if not separator:
+            continue
+        try:
+            parsed = json.loads(output)
+        except (TypeError, ValueError):
+            parsed = None
+        if isinstance(parsed, dict):
+            for key in ("summary", "answer", "message", "error"):
+                value = parsed.get(key)
+                if isinstance(value, str) and value.strip():
+                    summaries.append(value.strip())
+                    break
+        elif output.strip() and len(output.strip()) <= 500:
+            summaries.append(output.strip())
+
+    if summaries:
+        return "\n\n".join(dict.fromkeys(summaries))
+
     answer = (tool_answer_text or "").strip()
-    outputs = (tools_text or "").strip()
-    if answer and outputs and answer not in outputs:
-        return answer + "\n\n" + "--- External Tool Results ---\n" + outputs
-    return "--- External Tool Results ---\n" + outputs
+    if answer and not answer.startswith(("{", "[")) and len(answer) <= 500:
+        return answer
+    return "The requested tools returned results, but I couldn't summarize them safely."
 
 
 def _extract_svg_from_tool_outputs(tool_outputs: List[Dict[str, Any]]) -> str:

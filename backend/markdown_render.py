@@ -202,8 +202,12 @@ def render_markdown_to_html(markdown_text: Optional[str]) -> str:
                 if not txt:
                     return []
 
-                # Match bracketed index groups: [1], [12], [3, 4], [3,4,5]
-                pat = re.compile(r"\[\s*\d+(?:\s*,\s*\d+)*\s*\]")
+                # Match knowledge-base indices ([1], [3, 4]) and the named
+                # tool/web citations appended by the final-response stage.
+                pat = re.compile(
+                    r"\[\s*(?:\d+(?:\s*,\s*\d+)*|(?:tool|web)-\d+)\s*\]",
+                    flags=re.IGNORECASE,
+                )
                 matches = list(pat.finditer(txt))
                 if not matches:
                     return [txt]
@@ -287,6 +291,24 @@ def render_markdown_to_html(markdown_text: Optional[str]) -> str:
                 if not sources_lines:
                     continue
 
+                # A standalone Sources paragraph has no preceding answer text
+                # to preserve. Reuse that paragraph as the label so it remains
+                # in the document while its individual source lines are added.
+                if not before_txt and getattr(node, "name", None) != "li":
+                    node.clear()
+                    sources_label = soup.new_tag("strong")
+                    sources_label.append(NavigableString(sources_lines[0]))
+                    node.append(sources_label)
+                    if sources_lines[1:]:
+                        sources_div = soup.new_tag("div")
+                        sources_div["class"] = "sources"
+                        for i, ln in enumerate(sources_lines[1:]):
+                            if i > 0:
+                                sources_div.append(soup.new_tag("br"))
+                            sources_div.append(NavigableString(ln))
+                        node.insert_after(sources_div)
+                    continue
+
                 insert_after_node = node
 
                 if before_txt:
@@ -300,10 +322,6 @@ def render_markdown_to_html(markdown_text: Optional[str]) -> str:
                         main_p.append(NavigableString(before_txt))
                         node.replace_with(main_p)
                         insert_after_node = main_p
-                else:
-                    # If the paragraph was only sources, remove it and insert sources in its place.
-                    node.extract()
-
                 if getattr(insert_after_node, "name", None) == "li":
                     # Render sources inside the list item to keep valid HTML.
                     insert_after_node.append(soup.new_tag("br"))

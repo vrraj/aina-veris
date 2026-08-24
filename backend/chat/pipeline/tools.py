@@ -407,7 +407,21 @@ def _extract_artifacts_from_tool_outputs(
                     "artifact_type": artifact_type,
                 }
             )
-    return artifacts
+    # A compound query can cause the planner to call the same chart tool more
+    # than once.  A placeholder identifies a single display location, so keep
+    # only its first valid artifact instead of appending duplicate charts.
+    unique_artifacts: List[Dict[str, str]] = []
+    seen_locations = set()
+    for artifact in artifacts:
+        location = (
+            str(artifact.get("tool") or ""),
+            str(artifact.get("placeholder") or ""),
+        )
+        if location in seen_locations:
+            continue
+        seen_locations.add(location)
+        unique_artifacts.append(artifact)
+    return unique_artifacts
 
 
 def _inject_registered_artifacts(text: str, artifacts: List[Dict[str, str]]) -> str:
@@ -490,7 +504,10 @@ def _redact_tool_outputs_for_synth(tool_outputs_list: List[Dict[str, Any]], tool
         artifact_key = str((artifact_cfg or {}).get("artifact_key") or "").strip()
         placeholder = str((artifact_cfg or {}).get("placeholder") or "").strip()
 
-        if not produces_artifact or not artifact_key:
+        # MCP adapters may surface an artifact through the internal field even
+        # before a matching registry entry has been populated.
+        has_inline_artifact = bool(t.get("_svg_artifact"))
+        if not produces_artifact and not has_inline_artifact:
             redacted.append(item)
             continue
 
@@ -498,10 +515,17 @@ def _redact_tool_outputs_for_synth(tool_outputs_list: List[Dict[str, Any]], tool
         try:
             parsed = json.loads(output_text)
             if isinstance(parsed, dict):
-                if artifact_key in parsed:
+                if artifact_key and artifact_key in parsed:
                     parsed.pop(artifact_key, None)
-                if placeholder:
-                    parsed["artifact_placeholder"] = placeholder
+                # Chart tools commonly attach their source series here.  It is
+                # useful to render the chart, but flooding the synthesis prompt
+                # with it makes the model echo raw JSON into the final answer.
+                parsed.pop("structured_payload", None)
+                effective_placeholder = placeholder or str(
+                    parsed.get("artifact_placeholder") or item.get("artifact_placeholder") or ""
+                ).strip()
+                if effective_placeholder:
+                    parsed["artifact_placeholder"] = effective_placeholder
                 parsed["artifact_payload_omitted"] = True
                 compact = json.dumps(parsed, ensure_ascii=False)
         except Exception:
