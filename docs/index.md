@@ -58,9 +58,9 @@ and inserted into the response during post-processing.
 </p>
 
 <p align="center">
-  <a href="aina-veris-nvda-research.png">
+  <a href="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-nvda-research.png">
     <img
-      src="aina-veris-nvda-research.png"
+      src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-nvda-research.png"
       alt="Aina-Veris tool-assisted NVDA research"
       style="max-width: 75%; height: auto;"
     />
@@ -87,9 +87,9 @@ and inserted into the response during post-processing.
 </ul>
 
 <p align="center">
-  <a href="aina-markets-a2a-veris-research.png">
+  <a href="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-markets-a2a-veris-research.png">
     <img
-      src="aina-markets-a2a-veris-research.png"
+      src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-markets-a2a-veris-research.png"
       alt="Aina Markets using Aina-Veris as its Finance-domain A2A research agent"
       style="max-width: 75%; height: auto;"
     />
@@ -115,7 +115,7 @@ evaluate retrieval independently of answer generation.
 ## What Happens: Research Pipeline
 
 <p align="center">
-  <img src="aina-veris-pipeline.png" alt="Aina-Veris research pipeline" style="max-width: 100%; height: auto;" />
+  <img src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-pipeline.png" alt="Aina-Veris research pipeline" style="max-width: 100%; height: auto;" />
 </p>
 
 <p align="center"><em>The shared pipeline turns a request into a grounded response with citations.</em></p>
@@ -126,7 +126,7 @@ tools, observability, and security boundary.
 ## How the System Is Built
 
 <p align="center">
-  <img src="aina-veris-architecture.png" alt="Aina-Veris technical architecture" style="max-width: 100%; height: auto;" />
+  <img src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-architecture.png" alt="Aina-Veris technical architecture" style="max-width: 100%; height: auto;" />
 </p>
 
 <p align="center"><em>Interfaces invoke a shared research runtime backed by domain-isolated knowledge and configurable tools.</em></p>
@@ -144,7 +144,7 @@ Aina-Veris provides real-time visibility into research execution through
 
 <p align="center">
   <img
-    src="aina-veris-sse-pipeline.png"
+    src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-sse-pipeline.png"
     alt="Aina-Veris SSE pipeline execution showing retrieval, reranking, context assembly, MCP tool calls, and inference"
     style="max-width: 100%; height: auto;"
   />
@@ -169,7 +169,7 @@ and <code>mcp:tavily_search</code>. Stage-level metrics also provide visibility 
 ## Build a domain knowledge base
 
 <p align="center">
-  <img src="aina-veris-ingestion-pipeline.png" alt="Aina-Veris ingestion pipeline" style="max-width: 100%; height: auto;" />
+  <img src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-ingestion-pipeline.png" alt="Aina-Veris ingestion pipeline" style="max-width: 100%; height: auto;" />
 </p>
 
 <p align="center"><em>Source material is processed into domain-specific knowledge for the shared research runtime.</em></p>
