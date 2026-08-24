@@ -6,7 +6,8 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 # What this script does:
 #   1) Validates basic prerequisites (git, python3, make, docker, compose)
-#   2) Ensures a local .env exists (copies from .env.example if present)
+#   2) Ensures a local .env exists (copies from .env.example if present) and
+#      verifies it has at least one provider API key
 #   3) Starts infrastructure + app via `make start`
 #   4) Creates a Python virtual environment (./.venv), installs deps, and seeds sample data
 #   5) (Optional) Runs API smoke tests (auth check) via scripts/api_smoke_test_*.py
@@ -17,7 +18,7 @@ set -euo pipefail
 #
 # Notes:
 #   - This script is intentionally explicit (no curl|bash).
-#   - After setup completes, add your API keys to .env (OPENAI_API_KEY and/or GEMINI_API_KEY)
+#   - Add an API key to .env before running this script (OPENAI_API_KEY and/or GEMINI_API_KEY)
 #   - Treat API keys like passwords. Do not commit them.
 #   - If your environment already exports OPENAI_API_KEY or GEMINI_API_KEY, your app may prefer them
 #     over .env (depending on your config).
@@ -77,7 +78,21 @@ else
   echo "ℹ️  .env already exists"
 fi
 
-# Note: API keys should be added to .env after setup completes
+# The application validates its provider configuration at startup, so fail here
+# with a direct instruction instead of starting containers that cannot become
+# healthy. Environment variables remain supported for automated setup.
+has_provider_key=false
+if [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
+  has_provider_key=true
+elif grep -qE '^[[:space:]]*(OPENAI_API_KEY|GEMINI_API_KEY)=[^[:space:]#]+' .env; then
+  has_provider_key=true
+fi
+
+if [ "$has_provider_key" != true ]; then
+  echo "❌ Add OPENAI_API_KEY or GEMINI_API_KEY to .env before running setup." >&2
+  echo "   Then rerun: bash scripts/rag_setup.sh" >&2
+  exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # 2) Start services (Qdrant + app)
@@ -174,11 +189,7 @@ deactivate
 echo
 echo "🎉 Setup complete!"
 echo
-echo "📝 Next step: Add your API keys to .env:"
-echo "   OPENAI_API_KEY=your_openai_key_here"
-echo "   GEMINI_API_KEY=your_gemini_key_here"
-echo "   Restart the app: make stop && make start"
-echo "   Open the Application in your browser: http://localhost:8100"
+echo "📝 Open the application in your browser: http://localhost:8100"
 
 # Quick sanity check (non-fatal): show compose tool detected
 echo "   Compose detected: $COMPOSE_CMD"

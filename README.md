@@ -10,6 +10,8 @@ Aina-Veris combines domain-specific knowledge with configurable retrieval,
 tools, models, and prompts in a shared research runtime for **AI agents and
 applications**.
 
+[Install Aina-Veris →](#quick-start)
+
 ## Aina-Veris Through Claude
 
 Claude can use Aina-Veris through the **Model Context Protocol (MCP)** to
@@ -379,21 +381,39 @@ These registries provide the configuration inputs used by the transport and orch
 
 ## Quick Start
 
-**Prerequisites:** Docker Desktop with Docker Compose, Python 3.10+, and an OpenAI and/or Gemini API key. Local retrieval models are optional and download only when enabled.
+**Prerequisites:** Docker Desktop with Docker Compose, Python 3.10+, and an
+OpenAI and/or Gemini API key. Local retrieval models are optional and download
+only when enabled.
 
 ```bash
 git clone https://github.com/vrraj/aina-veris.git
 cd aina-veris
-bash scripts/rag_setup.sh
+cp .env.example .env
 ```
 
-The setup script creates `.env`, starts Qdrant and the app, creates the local virtual environment, and seeds sample data. Add at least one provider key to `.env`, then open [http://localhost:8100](http://localhost:8100).
+Add at least one provider key to `.env`:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
 # or
 GEMINI_API_KEY=your_gemini_api_key
 ```
+
+Then run the setup script:
+
+```bash
+bash scripts/rag_setup.sh
+```
+
+It starts Qdrant and the application, creates `.venv`, installs Python
+dependencies, and seeds the reference data. When it completes, open
+[http://localhost:8100](http://localhost:8100).
+
+> **Existing Qdrant instance:** Set `DOCKER_QDRANT_HOST` and
+> `DOCKER_QDRANT_PORT` in `.env` before setup. The hostname must be reachable
+> from the application container; for a Qdrant service running on the Docker
+> host, use `host.docker.internal` on macOS or Windows. The bundled Qdrant
+> container can remain running, but Aina-Veris will use the configured instance.
 
 ### Connect Aina-Veris to Claude Desktop via MCP
 

@@ -56,9 +56,10 @@ services:
       GEMINI_OPENAI_BASE_URL: ${GEMINI_OPENAI_BASE_URL}
       # Debug only: logs full resolved prompts/payloads (may include sensitive data). Disable in prod.
       PROMPT_REGISTRY_LOG_FULL: ${PROMPT_REGISTRY_LOG_FULL:-0}
-      # Use the service name 'qdrant' for connection inside the Docker network
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
+      # Use the bundled service by default. These dedicated overrides avoid
+      # treating a host-side QDRANT_HOST=localhost as container-local Qdrant.
+      QDRANT_HOST: ${DOCKER_QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${DOCKER_QDRANT_PORT:-6333}
 
     volumes:
       # Persistent storage for logs written by your start.py script
