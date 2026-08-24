@@ -230,6 +230,27 @@ registries**.
 
 <p align="center"><em>The Web UI provides domain-aware ingestion, knowledge-base administration, search, evaluation, and runtime configuration.</em></p>
 
+## Retrieval Evaluation and Tuning
+
+The Retrieval Evaluation workspace runs a prompt against a selected domain with
+local or hosted models, configurable retrieval settings, and optional compound
+query decomposition. It makes the retrieved evidence, query plan, coverage,
+and reranking results visible before answer generation.
+
+Use these experiments to tune domain prompts, retrieval candidate sets, and
+model choices against representative questions—then carry the validated
+configuration into the research runtime.
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/vrraj/aina-veris/main/images/aina-veris-retrieval-evaluation.png"
+    alt="Aina-Veris Retrieval Evaluation workspace for testing local and hosted models, domain prompts, retrieval settings, and compound queries"
+    style="max-width: 85%; height: auto;"
+  />
+</p>
+
+<p align="center"><em>Compare retrieval behavior across domains, models, retrieval settings, and compound-query plans.</em></p>
+
 ## Guides
 
 | Goal | Guide |
