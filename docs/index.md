@@ -56,16 +56,23 @@ and inserted into the response during post-processing.
 </p>
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-nvda-research.png">
-    <img
-      src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-nvda-research.png"
-      alt="Aina-Veris tool-assisted NVDA research"
-      style="max-width: 75%; height: auto;"
+  <video
+    controls
+    playsinline
+    preload="metadata"
+    poster="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-nvda-research.png"
+    style="max-width: 75%; height: auto;"
+    aria-label="Aina-Veris tool-assisted NVDA research pipeline"
+  >
+    <source
+      src="https://raw.githubusercontent.com/vrraj/aina-veris/main/images/aina-veris-inference-pipeline.mp4"
+      type="video/mp4"
     />
-  </a>
+    Your browser does not support embedded video.
+  </video>
 </p>
 
-<p align="center"><em>Tool-assisted NVDA research outcome. Click image to view full size.</em></p>
+<p align="center"><em>Tool-assisted NVDA research executing live.</em></p>
 
 <h3>A2A Research Provider</h3>
 
