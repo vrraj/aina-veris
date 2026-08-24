@@ -6,11 +6,9 @@
 
 **A domain-aware RAG runtime with A2A agents, MCP tool integration, and configurable retrieval pipelines.**
 
-Aina-Veris provides a shared research runtime for building domain-specific AI research systems. Each domain can maintain its own knowledge collection, corpus, embedding and retrieval strategy, and model configuration while using the same research pipeline and integration surfaces. Domain prompts inherit global research and citation instructions, with optional domain-specific overrides for individual stages.
+Aina-Veris provides a **shared research runtime** for building domain-specific AI research systems. It combines isolated domain knowledge collections, embedding and retrieval strategy, and model configurations while using the same research pipeline and integration surfaces. 
 
-**Adding a domain is configuration-led:** define its collection, embedding and retrieval settings, optional prompt overrides, and ingest the corpus. Add an agent definition to expose the domain through **A2A and MCP**; its AgentCard and domain-scoped research tool are created at startup.
-
-Research can be accessed through **A2A agents, MCP, REST APIs, or embeddable chat**. The shared pipeline retains citations, artifacts, execution visibility, and stage-level metrics for the interfaces that expose them.
+Research can be accessed through **A2A agents, MCP, REST APIs, or embeddable chat**. 
 
 ## What you can do with Aina-Veris
 
