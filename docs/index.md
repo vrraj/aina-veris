@@ -53,7 +53,7 @@ and expose its own domain research capabilities to other agents and applications
 
 <p>
 The price-history chart is generated from structured time-series data using
-<a href="https://pypi.org/project/timeseries-sparklines/"><code>timeseries-sparklines</code></a>
+<code>timeseries-sparklines</code>
 and inserted into the response during post-processing.
 </p>
 
@@ -73,7 +73,7 @@ and inserted into the response during post-processing.
 
 <ul>
   <li>
-    <strong>Aina Markets</strong> → AI agent
+    <strong>Aina Markets</strong> <em>(private repository)</em> → AI agent
   </li>
   <li>
     <strong>AI agent</strong> → A2A → Aina-Veris Finance Research Agent
@@ -87,9 +87,9 @@ and inserted into the response during post-processing.
 </ul>
 
 <p align="center">
-  <a href="aina-markets-a2a-veris.png">
+  <a href="aina-markets-a2a-aina-veris.png">
     <img
-      src="aina-markets-a2a-veris.png"
+      src="aina-markets-a2a-aina-veris.png"
       alt="Aina Markets using Aina-Veris as its Finance-domain A2A research agent"
       style="max-width: 75%; height: auto;"
     />
@@ -99,9 +99,9 @@ and inserted into the response during post-processing.
 <p align="center"><em>Aina Markets delegating Finance-domain research through A2A. Click image to view full size.</em></p>
 
 <p>
-In this flow, <strong>Aina Markets uses Aina-Veris as its Finance-domain
-A2A research agent</strong>, delegating domain research to Aina-Veris and
-receiving the grounded result through A2A.
+In this flow, <strong>Aina Markets</strong> uses Aina-Veris as its
+Finance-domain A2A research agent, delegating domain research and receiving the
+grounded result through A2A.
 </p>
 
 ## One runtime for agents, applications, and operators
@@ -189,5 +189,8 @@ retrieval policy. See [Domain configuration and ingestion](configuration.md).
 | Run locally or deploy safely | [Development](development.md) · [Deployment](deployment.md) · [Security](security.md) |
 | Diagnose a local installation | [Troubleshooting](troubleshooting.md) |
 
-The repository [README](https://github.com/vrraj/aina-veris/blob/main/README.md)
-is the concise product and setup overview.
+## Related repositories
+
+- [Aina-Veris](https://github.com/vrraj/aina-veris) — source and setup overview.
+- [timeseries-sparklines](https://github.com/vrraj/timeseries-sparklines) — SVG time-series chart rendering.
+- [Aina Markets](https://github.com/vrraj/aina-markets) — private repository, accessible to authorized collaborators.
