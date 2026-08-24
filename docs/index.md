@@ -159,6 +159,22 @@ and <code>mcp:tavily_search</code>. Stage-level metrics also provide visibility 
 </p>
 
 <p>
+The metrics view records input and output tokens, reasoning tokens where
+available, latency, and inference cost across each pipeline stage and for the
+overall conversation.
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-pipeline-metrics.png"
+    width="85%"
+    alt="Aina-Veris stage-level token usage and inference cost metrics"
+  />
+</p>
+
+<p align="center"><em>Stage-level metrics make token usage and inference cost visible throughout the research pipeline.</em></p>
+
+<p>
   <a href="server-sent-events.md">SSE execution</a>
   &nbsp;·&nbsp;
   <a href="retrieval-evals.md">Retrieval evaluation</a>
