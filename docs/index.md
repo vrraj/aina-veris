@@ -1,22 +1,20 @@
 ---
 layout: default
-title: "Aina-Veris Documentation"
-description: "Documentation for the Aina-Veris domain-aware RAG runtime."
+title: "Aina-Veris"
+description: "Domain-aware research runtime with A2A, MCP, configurable retrieval, and tool-assisted research."
 ---
 
-# Aina-Veris Documentation
+# Aina-Veris
 
-Aina-Veris is a domain-aware research runtime for AI agents and applications.
-It builds domain knowledge from source content and returns grounded research with
-citations through A2A, MCP, REST, and embeddable chat.
+**Domain-aware research runtime for agents, applications, and tool-assisted RAG.**
 
-```text
-Sources → Ingestion → Domain Knowledge → Research Pipeline → Grounded Response + Citations
-                                              ↑
-                         A2A • MCP • REST • Embeddable Chat
-```
+Aina-Veris combines domain-specific knowledge with configurable retrieval,
+tools, models, and prompts in a shared research runtime.
 
-<h2>Research Flows</h2>
+Research can be accessed through **A2A, MCP, REST/OpenAPI, the Web UI, and
+embeddable chat**.
+
+## Research Flows
 
 <p>
 Aina-Veris can combine domain knowledge with external capabilities during research,
