@@ -4,78 +4,64 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Qdrant](https://img.shields.io/badge/vector%20database-Qdrant-dc244c)](https://qdrant.tech/)
 
-**A domain-aware RAG runtime with A2A agents, MCP tool integration, and configurable retrieval pipelines.**
+**Domain-Aware Research with A2A, MCP, and Configurable Retrieval**
 
-Aina-Veris provides a **shared research runtime** for building domain-specific AI research systems. It combines isolated domain knowledge collections, embedding and retrieval strategy, and model configurations while using the same research pipeline and integration surfaces. 
+Aina-Veris combines domain-specific knowledge with configurable retrieval,
+tools, models, and prompts in a shared research runtime for **AI agents and
+applications**.
 
-Research can be accessed through **A2A agents, MCP, REST APIs, or embeddable chat**. 
+## Research in Action
 
-## What you can do with Aina-Veris
+**These examples show Aina-Veris performing tool-assisted, domain-grounded
+research and providing research capabilities to another application through
+A2A.**
 
-Aina-Veris provides domain-scoped research capabilities to AI agents and
-applications. It indexes source content into domain knowledge bases and exposes
-source-backed research responses with citations through A2A, MCP, REST, and
-embeddable chat.
+### Tool-Assisted Domain Research
 
-```text
-Sources → Ingestion → Domain Knowledge → Research Pipeline → Grounded Response + Citations
-                                              ↑
-                         A2A • MCP • REST • Embeddable Chat
-                              Agents and applications
-```
+> **"Who are NVDA's largest shareholders? Show me a 6-month price-history
+> chart and research current analyst recommendations for NVDA."**
 
-### Domain-specific research
+This request combines:
 
-Ask a research agent a technical question and receive a grounded response from the knowledge base assigned to that agent.
+- **Domain knowledge retrieval** from the indexed Finance knowledge base.
+- **MCP tool access** for structured market data used to generate the
+  price-history chart. The returned time-series data is rendered to SVG using
+  [`timeseries-sparklines`](https://pypi.org/project/timeseries-sparklines/)
+  and inserted into the response as an artifact during post-processing.
+- **External research through MCP** for current analyst recommendations.
+- **Grounded synthesis** with citations, source metadata, and generated
+  artifacts.
 
-```text
-Semiconductor Research Agent
-  → semiconductor_memory domain
-  → domain retrieval + reranking
-  → grounded research artifact + citations
-```
+<p align="center">
+  <img src="images/aina-veris-nvda-research.png" width="100%" alt="Aina-Veris researching NVDA using domain knowledge, MCP tools, web research, citations, and a generated price-history chart" />
+</p>
 
-Domains remain isolated: the server-owned agent configuration fixes its collection and research policy rather than accepting an arbitrary knowledge domain from the caller.
+The tools used in this example—`get_stock_price_history` and
+`tavily_search`—are visible alongside the response. The Web UI also surfaces
+pipeline metrics including **latency, token usage, and inference cost**.
 
-### Cross-application research with A2A
+### A2A — Aina-Veris as a Research Provider
 
-Applications and AI systems can discover Aina-Veris research agents through their AgentCards and submit research tasks using A2A.
+<p align="center">
+  <img src="images/aina-markets-a2a-veris.png.png" width="100%" alt="Aina Markets using Aina-Veris as its Finance-domain A2A research agent" />
+</p>
 
-AINA Markets is an internal trading-application repository and the reference
-consumer of the Finance Research Agent. It uses Aina-Veris for market research
-before applying its own application synthesis:
+In this example, **Aina Markets** uses Aina-Veris as its **Finance-domain A2A
+research agent**. The application calls the agent to perform domain-scoped
+research through the Aina-Veris shared research runtime.
 
-```text
-AINA Markets
-  → Finance Research Agent
-  → finance knowledge + research pipeline
-  → A2A research artifact + sources
-  → application synthesis
-```
+## Shared Runtime, Different Research Domains
 
-AgentCards are published per agent:
+Each domain maintains its own **knowledge collection, embedding configuration,
+retrieval strategy, prompts, and model configuration** while using the same
+research pipeline and integration surfaces.
 
-```text
-/agents/<agent-name>/.well-known/agent-card.json
-```
+Aina-Veris research capabilities can be accessed through **A2A, MCP,
+REST/OpenAPI, the Web UI, and embeddable chat**.
 
-To discuss the AINA Markets integration or a similar cross-application
-research workflow, contact `ai-musings99@gmail.com`.
-
-### Tool-assisted research
-
-Research is not limited to indexed documents. During inference, Aina-Veris can combine retrieved knowledge with local and external capabilities.
-
-```text
-Question
-  → domain retrieval
-  → Tavily web search through MCP
-  → source normalization
-  → final inference
-  → cited response
-```
-
-Local and REST-backed tools can return structured data and, where configured, deterministic SVG chart artifacts without placing raw SVG payloads in model context.
+Domain, model, prompt, and tool behavior is managed through **versioned YAML
+registries**, with global prompts supporting **domain-specific overrides at
+individual pipeline stages**.
 
 ## System Architecture
 
@@ -122,6 +108,12 @@ path, and retrieval policy used once that knowledge base is queried.
   <img src="images/aina-veris-ingestion-pipeline.png" style="max-width: 100%; height: auto;" alt="Aina-Veris ingestion pipeline showing individual and batch source ingestion, metadata-preserving processing, domain-aware indexing, and Qdrant domain collections" />
 </p>
 
+The same domain-aware workflow is available through the **Aina-Veris Web UI**,
+with ingestion for PDF, MediaWiki, HTML, and batch sources. The workspace also
+provides access to knowledge-base exploration and management, semantic search,
+retrieval evaluation, and the **prompt, tool, and domain embedding
+registries**.
+
 - **Individual or batch sources** — Index a document directly or process a
   source manifest after estimating chunks and cost.
 - **Evidence-preserving processing** — Retain source, document title, section,
@@ -129,6 +121,10 @@ path, and retrieval policy used once that knowledge base is queried.
 - **Domain-aware indexing** — The domain configuration selects the collection,
   embedding model, vector type, and retrieval path for the resulting knowledge
   base.
+
+<p align="center">
+  <img src="images/aina-veris-content-ingestion.png" width="100%" alt="Aina-Veris Web UI showing domain-aware content ingestion, knowledge-base management, retrieval evaluation, and prompt, tool, and domain configuration registries" />
+</p>
 
 ### Individual ingestion
 
@@ -416,19 +412,45 @@ The loader passes other `data-*` values through as embed query parameters.
 
 [Read the embedded-chat guide →](docs/embedded-chat.md)
 
-## Evaluation and Observability
+## Evaluation & Observability
 
-Aina-Veris exposes retrieval independently from generation so retrieval quality can be inspected before evaluating the final answer.
+Aina-Veris provides visibility into both **research pipeline execution and
+retrieval performance**, with stage-level metrics for latency, token usage, and
+inference cost.
 
-Retrieval evaluation supports inspection of intermediate candidates, fusion, reranking, and coverage.
+### Real-Time Pipeline Execution
 
-Each request is assigned a `query_id`. Clients can subscribe to:
+**SSE stage events** expose the pipeline as it executes—from query resolution
+and retrieval through context assembly, inference, and tool calls.
 
-```text
-GET /chat/stream/stages?query_id=...
-```
+<p align="center">
+  <img src="images/aina-veris-sse-pipeline.png" width="90%" alt="Aina-Veris SSE pipeline execution showing retrieval, context assembly, MCP tool calls, and inference" />
+</p>
 
-SSE stage events provide real-time visibility into retrieval, reranking, context assembly, tool calls, and inference. Request metrics provide stage-level latency, token usage, and cost traceability.
+The execution trace also exposes individual tool calls such as
+`mcp:get_stock_price_history` and `mcp:tavily_search`.
+
+### Stage-Level Metrics
+
+Pipeline metrics track **latency, input/output tokens, reasoning tokens where
+available, and inference cost** across individual stages and the overall
+conversation.
+
+<p align="center">
+  <img src="images/aina-veris-pipeline-metrics.png" width="85%" alt="Aina-Veris stage-level token usage and inference cost metrics" />
+</p>
+
+### Retrieval Evaluation
+
+**Retrieval can be evaluated independently of generation.** The evaluation
+workbench exposes dense, sparse, and hybrid retrieval, compound-query
+decomposition, ColBERT and cross-encoder reranking, subquery coverage, and
+intermediate retrieval results for inspection. **The view below shows a subset
+of the available evaluation controls and outputs.**
+
+<p align="center">
+  <img src="images/aina-veris-retrieval-evals.png" width="100%" alt="Aina-Veris retrieval evaluation workbench showing retrieval configuration, reranking, subquery coverage, and compound-query decomposition" />
+</p>
 
 [Retrieval evaluation guide →](docs/retrieval-evals.md)
 
