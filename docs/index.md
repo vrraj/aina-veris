@@ -72,7 +72,7 @@ and inserted into the response during post-processing.
   </video>
 </p>
 
-<p align="center"><em>Tool-assisted NVDA research executing live.</em></p>
+<p align="center"><em>Press play to watch the live SSE execution trace: query resolution, retrieval, reranking, MCP tool calls, and final grounded inference.</em></p>
 
 <h3>A2A Research Provider</h3>
 
