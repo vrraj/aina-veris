@@ -50,6 +50,29 @@ In this example, **Aina Markets** uses Aina-Veris as its **Finance-domain A2A
 research agent**. The application calls the agent to perform domain-scoped
 research through the Aina-Veris shared research runtime.
 
+### Embeddable Chat
+
+Aina-Veris research can also be embedded directly into applications using
+**inline or popup chat**.
+
+Embedded chat uses the same domain-aware research runtime, including
+**knowledge retrieval, MCP and local tool calling, grounded citations,
+generated artifacts, and streaming responses**.
+
+<p align="center">
+  <a href="images/embeddable-chat.png">
+    <img
+      src="images/embeddable-chat.png"
+      alt="Aina-Veris inline and popup embeddable research chat"
+      width="75%"
+    />
+  </a>
+</p>
+
+<p align="center">
+  <em>Inline and popup embedding options. Click to view full size.</em>
+</p>
+
 ## Shared Runtime, Different Research Domains
 
 Each domain maintains its own **knowledge collection, embedding configuration,

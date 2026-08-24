@@ -102,6 +102,26 @@ Finance-domain A2A research agent, delegating domain research and receiving the
 grounded result through A2A.
 </p>
 
+### Embed Research into Applications
+
+Aina-Veris can be embedded into applications as **inline or popup chat**,
+with access to the same domain knowledge, **MCP and local tools, citations,
+artifacts, and streaming research pipeline**.
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/images/embeddable-chat.png">
+    <img
+      src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/images/embeddable-chat.png"
+      alt="Aina-Veris inline and popup embeddable research chat"
+      style="max-width: 75%; height: auto;"
+    />
+  </a>
+</p>
+
+<p align="center">
+  <em>Inline and popup research experiences powered by Aina-Veris. Click to view full size.</em>
+</p>
+
 ## One runtime for agents, applications, and operators
 
 Aina-Veris exposes the same domain-scoped research runtime through A2A agents,
