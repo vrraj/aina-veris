@@ -87,9 +87,9 @@ and inserted into the response during post-processing.
 </ul>
 
 <p align="center">
-  <a href="aina-markets-a2a-aina-veris-research.png">
+  <a href="aina-markets-a2a-veris-research.png">
     <img
-      src="aina-markets-a2a-aina-veris-research.png"
+      src="aina-markets-a2a-veris-research.png"
       alt="Aina Markets using Aina-Veris as its Finance-domain A2A research agent"
       style="max-width: 75%; height: auto;"
     />

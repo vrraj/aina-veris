@@ -43,7 +43,7 @@ pipeline metrics including **latency, token usage, and inference cost**.
 ### A2A — Aina-Veris as a Research Provider
 
 <p align="center">
-  <img src="images/aina-markets-a2a-aina-veris-research.png" width="100%" alt="Aina Markets using Aina-Veris as its Finance-domain A2A research agent" />
+  <img src="images/aina-markets-a2a-veris-research.png" width="100%" alt="Aina Markets using Aina-Veris as its Finance-domain A2A research agent" />
 </p>
 
 In this example, **Aina Markets** uses Aina-Veris as its **Finance-domain A2A
