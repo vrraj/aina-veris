@@ -164,7 +164,7 @@ and <code>mcp:tavily_search</code>. Stage-level metrics also provide visibility 
   <a href="retrieval-evals.md">Retrieval evaluation</a>
 </p>
 
-## Build a domain knowledge base
+## Building Domain Knowledge Bases
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-ingestion-pipeline.png" alt="Aina-Veris ingestion pipeline" style="max-width: 100%; height: auto;" />
@@ -174,6 +174,18 @@ and <code>mcp:tavily_search</code>. Stage-level metrics also provide visibility 
 
 Domain configuration chooses the collection, embedding path, vector type, and
 retrieval policy. See [Domain configuration and ingestion](configuration.md).
+
+The **Aina-Veris Web UI** is the operator workspace for administering and
+querying domain knowledge. It supports PDF, MediaWiki, HTML, and batch
+ingestion; knowledge-base exploration and management; semantic search;
+retrieval evaluation; and editing the **prompt, tool, and domain embedding
+registries**.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/vrraj/aina-veris/main/docs/aina-veris-content-ingestion.png" alt="Aina-Veris Web UI showing domain-aware content ingestion, knowledge-base management, retrieval evaluation, and prompt, tool, and domain configuration registries" style="max-width: 100%; height: auto;" />
+</p>
+
+<p align="center"><em>The Web UI provides domain-aware ingestion, knowledge-base administration, search, evaluation, and runtime configuration.</em></p>
 
 ## Guides
 
