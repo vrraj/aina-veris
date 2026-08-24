@@ -10,6 +10,28 @@ Aina-Veris combines domain-specific knowledge with configurable retrieval,
 tools, models, and prompts in a shared research runtime for **AI agents and
 applications**.
 
+## Aina-Veris Through Claude
+
+Claude can use Aina-Veris through the **Model Context Protocol (MCP)** to
+discover and call domain-scoped research tools. The included reference tools
+research Mountains, Finance, and Semiconductor Memory through the same
+retrieval, reranking, tool-calling, and grounded-synthesis runtime used by the
+web application and REST API.
+
+After connecting Claude Desktop, try:
+
+> “Research NVDA's largest shareholders, recent price history, and analyst
+> recommendations.”
+
+> “What does the Semiconductor Memory research agent know about DDR5 power
+> management?”
+
+> “Research the best time to hike Mount Whitney and cite your sources.”
+
+Claude and other MCP-compatible AI agents can **discover → research → cite**
+with Aina-Veris. For local Claude Desktop setup, see
+[Connect Aina-Veris to Claude Desktop via MCP](#connect-aina-veris-to-claude-desktop-via-mcp).
+
 ## Research in Action
 
 **These examples show Aina-Veris performing tool-assisted, domain-grounded
@@ -286,20 +308,8 @@ For stdio clients, run the server module from the repository environment:
 }
 ```
 
-For a local checkout at `/Users/raj/Documents/Raj/aina-veris`, the equivalent
-copy-ready configuration is:
-
-```json
-{
-  "mcpServers": {
-    "aina-veris": {
-      "command": "/Users/raj/Documents/Raj/aina-veris/.venv/bin/python",
-      "args": ["-m", "backend.integrations.mcp.server"],
-      "cwd": "/Users/raj/Documents/Raj/aina-veris"
-    }
-  }
-}
-```
+For Claude Desktop, follow the
+[local MCP setup instructions](#connect-aina-veris-to-claude-desktop-via-mcp).
 
 [Read the MCP specification →](docs/mcp_specs.md) · [Configure tools →](docs/tool_registry.md)
 
@@ -384,6 +394,31 @@ OPENAI_API_KEY=your_openai_api_key
 # or
 GEMINI_API_KEY=your_gemini_api_key
 ```
+
+### Connect Aina-Veris to Claude Desktop via MCP
+
+Claude Desktop can connect to a local Aina-Veris checkout over **MCP stdio**.
+Open Claude Desktop's developer settings and edit its MCP configuration, then
+add this server entry with absolute paths for your checkout:
+
+```json
+{
+  "mcpServers": {
+    "aina-veris": {
+      "command": "/absolute/path/to/aina-veris/.venv/bin/python",
+      "args": ["-m", "backend.integrations.mcp.server"],
+      "cwd": "/absolute/path/to/aina-veris"
+    }
+  }
+}
+```
+
+Restart Claude Desktop after saving the configuration. Then ask Claude to use
+one of the available Aina-Veris research tools, such as `research_finance` or
+`research_semiconductor`.
+
+MCP stdio does **not** require the FastAPI service to be running. The Aina-Veris
+environment and its configured Qdrant instance must still be available.
 
 ## Extending Aina-Veris
 

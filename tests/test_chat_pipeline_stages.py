@@ -11,6 +11,8 @@ from backend.chat.pipeline.stages.inference import run_inference_stage
 from backend.chat.pipeline.stages.rewrite import run_rewrite_stage
 from backend.chat.pipeline.stages.tool_execution import run_tool_execution_stage
 from backend.chat.pipeline.stages.tool_execution import _normalize_synthesized_answer
+from backend.chat.pipeline.stages.tool_execution import _format_tool_fallback
+from backend.chat.pipeline.context import collapse_sources
 from backend.chat.pipeline.stages.web_context import run_web_context_stage
 from backend.chat.rewrite_helpers import should_rewrite
 from backend.chat.turn_resolution import normalize_turn_resolution
@@ -108,6 +110,32 @@ def test_tool_synthesis_refusal_falls_back_to_successful_tool_output(monkeypatch
 
     assert "Tavily found AI agent results." in result.answer_override
     assert "I couldn't find" not in result.answer_override
+
+
+def test_tool_fallback_uses_compact_summary_instead_of_raw_payload():
+    fallback = _format_tool_fallback(
+        "{'summary': 'Stock chart generated', 'structured_payload': {'history': [1, 2]}}",
+        '[SOURCE: TOOL - get_stock_price_history]\n'
+        '{"summary":"Stock chart generated for NVDA.","structured_payload":{"history":[1,2]}}',
+    )
+
+    assert fallback == "Stock chart generated for NVDA."
+    assert "structured_payload" not in fallback
+
+
+def test_collapsed_sources_are_markdown_list_items():
+    sources = collapse_sources(
+        [
+            {
+                "index": 1,
+                "url": "https://docs/one",
+                "section": "Ownership",
+                "subsection": "Investors",
+            }
+        ]
+    )
+
+    assert sources == "- [1] https://docs/one (Section: Ownership > Investors)"
 
 
 def test_rewrite_disabled_path_keeps_original_query():
