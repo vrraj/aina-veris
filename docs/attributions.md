@@ -1,12 +1,6 @@
-[← Back to Aina-Veris Home](https://vrraj.github.io/aina-veris)
+# Data Attribution and Licensing
 
-# 📄 Data Attribution & Licensing
-
-> **About this document**
->
-> This page provides **data attribution and licensing information** for the *Aina-Veris* system, including source credits and usage rights for sample data.
->
-> **Note:** If you landed here directly (for example from documentation hosting or search), start with the repository **[README](https://github.com/vrraj/aina-veris/blob/main/README.md)** to see how to run the system locally and try the interactive demo.
+[← Documentation home](index.md)
 
 This project utilizes a sample knowledge base to demonstrate its RAG capabilities. We believe in transparent data sourcing and respect for open-content creators.
 
@@ -24,4 +18,5 @@ In accordance with the **Share-Alike (SA)** provision of the CC BY-SA 4.0 licens
 3.  **Disclaimer:** This project is an independent educational tool and is not affiliated with, sponsored by, or endorsed by the Wikimedia Foundation.
 
 ---
-*For questions regarding the data processing pipeline, please refer to the [Technical Overview](./technical-overview.md).*
+For the research and ingestion design, see [Architecture](architecture.md) and
+[Domain configuration and ingestion](configuration.md).

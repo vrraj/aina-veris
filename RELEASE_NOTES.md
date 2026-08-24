@@ -1,34 +1,35 @@
-# Aina-Veris --- Initial Release
+# Aina-Veris — Initial Release
 
-Aina-Veris is a modular, domain-aware RAG research framework designed for
-direct use and integration with AI agents and applications.
+Aina-Veris is a **domain-aware RAG and research framework** for building and exposing
+grounded research capabilities to agents and applications.
 
 ## Highlights
 
--   Domain-isolated knowledge, ingestion, retrieval, prompts, and model
-    configuration.
--   Individual and batch ingestion for PDFs, web URLs, and MediaWiki sources.
--   Global prompt instructions with optional domain-specific overrides.
--   A2A domain research agents with AgentCard discovery.
--   MCP server and client support for inbound research access and
-    external tool integration.
--   Registry-driven local, REST, and external MCP tools.
--   Configurable dense, sparse, hybrid RRF, ColBERT, and cross-encoder
-    retrieval and reranking.
--   Compound-query decomposition and coverage-aware retrieval.
--   Local and hosted models with stage-specific configuration.
--   Grounded responses with citations, tool-backed sources, and
-    deterministic artifacts.
--   REST, SSE, MCP, A2A, Web UI, and embeddable chat interfaces.
--   Retrieval evaluation, stage-level observability, token and
-    inference-cost tracking.
--   Refactored modular architecture for clearer separation of services,
-    configuration, integrations, and improved maintainability.
+- **A2A research agents** with AgentCard discovery and execution.
+- **MCP server** support over Streamable HTTP and stdio, exposing domain-scoped research tools.
+- **MCP client** support for discovering and using external MCP tools during research.
+- **Domain-isolated knowledge bases** with independent Qdrant collections,
+  embedding models, retrieval policies, prompts, and model configuration.
+- **REST/OpenAPI, web UI, embeddable chat, and SSE interfaces** built on the same
+  research runtime.
+- PDF, URL/HTML, and MediaWiki ingestion, including **batch cost estimation and ingestion**; source, title, section, and document-type **metadata** are retained.
+- **Configurable** dense, sparse, and hybrid RRF retrieval, with optional ColBERT
+  and cross-encoder reranking, compound-query expansion, and coverage-aware
+  context assembly.
+- Grounded **responses with citations**, tool-backed sources, and deterministic
+  **artifacts** such as SVG charts.
+- Versioned YAML repositories for domain, model, **prompt registry, and tool registry**;
+  global prompts support domain-specific pipeline-stage overrides.
+- **Retrieval evaluation** independent of generation, with stage-level **SSE events**,
+  latency, token usage, and **inference-cost tracking**.
+
+>Aina-Veris also provides human operators a workspace to configure, inspect,
+test, and evaluate the same research runtime used by A2A agents, MCP clients,
+and applications.
 
 ## Deployment Note
 
 Aina-Veris is a reference framework and does not include a built-in identity
-provider, user store, or tenant authorization model. Deployments should apply
-authentication, authorization, rate limits, and audit logging appropriate to
+provider, user store, or tenant authorization model. Deployments should apply authentication, authorization, rate limits, and audit logging appropriate to
 their REST, A2A, MCP, ingestion, SSE, and embedded-chat interfaces. See
 [Security](SECURITY.md) for deployment guidance.

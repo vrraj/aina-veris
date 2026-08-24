@@ -1,26 +1,15 @@
-# --- Site Metadata & SEO Defaults ---
 title: "Aina-Veris"
-tagline: "Advanced RAG system with multi-provider LLM support"
-description: "Retrieval-Augmented Generation system with streaming capabilities, multi-provider support, and comprehensive API documentation."
+tagline: "Domain-aware research runtime for AI agents and applications"
+description: "Aina-Veris provides domain-scoped RAG research through A2A, MCP, REST, SSE, and embeddable chat."
 url: "https://vrraj.github.io"
 baseurl: "/aina-veris"
 
-# --- Theme Configuration ---
 theme: jekyll-theme-cayman
 show_downloads: true
 
-# --- Plugins ---
 plugins:
   - jekyll-seo-tag
-  - jekyll-gist
 
-# --- Google Analytics (GA4) ---
-google_analytics: G-KBYFPBJ1MG
-
-# --- SEO Specifics ---
-# GitHub profile: vrraj/aina-veris
-
-# --- Build Settings ---
 markdown: kramdown
 highlighter: rouge
 exclude:
@@ -28,45 +17,8 @@ exclude:
   - Gemfile.lock
   - vendor
 
-# --- Defaults for SEO and navigation ---
 defaults:
   - scope:
-      path: "" # Applies to all files
+      path: ""
     values:
       layout: "default"
-
-  - scope:
-      path: "index.md"
-    values:
-      title: "Aina-Veris: Advanced RAG System"
-      description: "Modular tool-assisted Retrieval-Augmented Generation (RAG) framework with multi-LLM orchestration, configurable pipelines, smart ingestion, and embeddable AI chat interfaces."
-
-  - scope:
-      path: "api-reference.md"
-    values:
-      title: "API Reference | Aina-Veris"
-      description: "Complete REST API reference for Aina-Veris including chat endpoints, ingestion APIs, pipeline parameters, request and response schemas, and session-based workflows."
-
-  - scope:
-      path: "embedded-chat.md"
-    values:
-      title: "Embedded Chat Guide | Aina-Veris"
-      description: "Guide to embedding the Aina-Veris assistant into websites using iframe or loader scripts, with configuration options for retrieval, prompts, and pipeline behavior."
-
-  - scope:
-      path: "server-sent-events.md"
-    values:
-      title: "Server-Sent Events | Aina-Veris"
-      description: "Server-Sent Events for real-time observability of the RAG pipeline, exposing retrieval, inference, and tool execution stages."
-
-  - scope:
-      path: "technical-overview.md"
-    values:
-      title: "Technical Overview | Aina-Veris"
-      description: "Deep technical overview of the Aina-Veris architecture including ingestion pipelines, orchestration flow, vector indexing, context management, and multi-LLM integration."
-
-  - scope:
-      path: "attributions.md"
-    values:
-      title: "Attributions | Aina-Veris"
-      description: "Licensing details and attribution for third-party components, datasets, and resources used in the Aina-Veris project."

@@ -1,5 +1,7 @@
 # Compound Query Expansion
 
+[← Documentation home](index.md)
+
 ## Overview
 
 Compound query expansion is a feature that decomposes complex, multi-part user queries into independent retrieval subqueries. This ensures that all facets of a user's question are properly retrieved and represented in the final answer, preventing one dominant aspect from crowding out others.
