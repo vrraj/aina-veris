@@ -1,29 +1,28 @@
-# Aina-Veris --- Initial Release
+# Aina-Veris — Initial Release
 
-Aina-Veris is a modular, domain-aware RAG research framework designed for
-direct use and integration with AI agents and applications.
+Aina-Veris is a domain-aware research framework for building and exposing
+grounded research capabilities to agents and applications.
 
 ## Highlights
 
--   Domain-isolated knowledge, ingestion, retrieval, prompts, and model
-    configuration.
--   Individual and batch ingestion for PDFs, web URLs, and MediaWiki sources.
--   Global prompt instructions with optional domain-specific overrides.
--   A2A domain research agents with AgentCard discovery.
--   MCP server and client support for inbound research access and
-    external tool integration.
--   Registry-driven local, REST, and external MCP tools.
--   Configurable dense, sparse, hybrid RRF, ColBERT, and cross-encoder
-    retrieval and reranking.
--   Compound-query decomposition and coverage-aware retrieval.
--   Local and hosted models with stage-specific configuration.
--   Grounded responses with citations, tool-backed sources, and
-    deterministic artifacts.
--   REST, SSE, MCP, A2A, Web UI, and embeddable chat interfaces.
--   Retrieval evaluation, stage-level observability, token and
-    inference-cost tracking.
--   Refactored modular architecture for clearer separation of services,
-    configuration, integrations, and improved maintainability.
+- Domain-isolated knowledge bases with independent Qdrant collections,
+  embedding models, retrieval policies, prompts, and model configuration.
+- PDF, URL/HTML, and MediaWiki ingestion, including batch planning and cost
+  estimation; source, title, section, and document-type metadata are retained.
+- Fixed-domain A2A research agents with AgentCard discovery, plus MCP server
+  support over Streamable HTTP and stdio. External MCP tools can be discovered
+  and used during research.
+- REST/OpenAPI, web UI, embeddable chat, and SSE interfaces built on the same
+  research runtime.
+- Configurable dense, sparse, and hybrid RRF retrieval, with optional ColBERT
+  and cross-encoder reranking, compound-query expansion, and coverage-aware
+  context assembly.
+- Grounded responses with citations, tool-backed sources, and deterministic
+  artifacts such as SVG charts.
+- Versioned YAML registries for domain, model, prompt, and tool configuration;
+  global prompts support domain-specific pipeline-stage overrides.
+- Retrieval evaluation independent of generation, with stage-level SSE events,
+  latency, token usage, and inference-cost tracking.
 
 ## Deployment Note
 

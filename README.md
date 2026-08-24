@@ -269,6 +269,21 @@ For stdio clients, run the server module from the repository environment:
 }
 ```
 
+For a local checkout at `/Users/raj/Documents/Raj/aina-veris`, the equivalent
+copy-ready configuration is:
+
+```json
+{
+  "mcpServers": {
+    "aina-veris": {
+      "command": "/Users/raj/Documents/Raj/aina-veris/.venv/bin/python",
+      "args": ["-m", "backend.integrations.mcp.server"],
+      "cwd": "/Users/raj/Documents/Raj/aina-veris"
+    }
+  }
+}
+```
+
 [Read the MCP specification →](docs/mcp_specs.md) · [Configure tools →](docs/tool_registry.md)
 
 The MCP endpoint does not add authentication itself. Put an authentication and authorization layer in front of `/mcp` before exposing it outside a trusted network; see [Security](SECURITY.md).
