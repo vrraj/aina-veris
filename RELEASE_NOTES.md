@@ -1,6 +1,6 @@
 # Aina-Veris — Initial Release
 
-Aina-Veris is a domain-aware research framework for building and exposing
+Aina-Veris is a **domain-aware RAG and research framework** for building and exposing
 grounded research capabilities to agents and applications.
 
 ## Highlights
