@@ -1,41 +1,60 @@
-# AGENTS.md - Project Standards & System Instructions
+# Aina-Veris Contributor Guide
 
-## 1. Environment & Infrastructure
-- **App Service:** `webapp` (Container: `uvicorn-app`) runs on **port 8100**.
-- **Vector DB Service:** `qdrant` (Container: `qdrant-server`) runs on **port 6333** (internal REST), **port 6334** (internal gRPC), **port 6335** (external REST), and **port 6336** (external gRPC).
-- **Internal Networking:** The App connects to Qdrant via `qdrant:6333`.
-- **Database Access:** To query Qdrant manually from the host terminal, use:
-  `curl http://localhost:6335/collections` or access the Qdrant dashboard at `http://localhost:6335/dashboard`
-- **Persistent Storage:** Qdrant data persists in `./qdrant_storage`, app logs in `./logs`.
-- **Development Mode:** Uses `run.py` with hot reload. Production uses `start.py`.
-- **Config Source:** Refer to `docker-compose.yml` and `.env` for environment variables. Never hardcode secrets.
-- **Virtual Environment:** This project relies on a virtual environment located at `.venv`.
-- **Dependencies:** All imports and package resolutions must be interpreted relative to the `.venv` directory. Please ensure that any pathing, linting, or code analysis tasks are configured to acknowledge this environment as the primary source for project dependencies.
+This file defines repository-level working conventions for human contributors
+and coding agents. It is intentionally tracked: do not put credentials,
+personal paths, or machine-specific configuration here.
 
-## 2. Backend Architecture (FastAPI/Python)
-- **Lean Routes:** DO NOT place business logic inside `app/main.py` or any `routes.py`. Routes are for transport only.
-- **Modularity:** Logic must be partitioned into `/services`, `/crud`, or `/utils`.
-- **Service Framework:** Build tools as decoupled services. Every service must be callable via:
-  1. A **Language Model prompt** (Agentic tool use)
-  2. A standard **REST API endpoint**
+## Environment
 
-## 3. Frontend Architecture (Vanilla JS & Static HTML)
-- **Tech Stack:** Vanilla JS (ES Modules) and static HTML files. No frontend frameworks.
-- **app.js:** Reserved ONLY for global/common functions.
-- **Page-Specific JS:** logic for a particular page must live in its own JS file (e.g., `chat.js`) and be included only in that page's HTML.
+- The FastAPI service is `webapp` (`uvicorn-app`) on port `8100`.
+- Qdrant is `qdrant` (`qdrant-server`): use `qdrant:6333` from the app
+  container and `http://localhost:6335` from the host.
+- Qdrant storage is `./qdrant_storage`; application logs are in `./logs`.
+- Use the repository `.venv` for all Python imports, tests, and tooling.
+- Read `docker-compose.yml`, `.env.example`, and the local untracked `.env`
+  for configuration. Never hardcode or commit secrets.
+- `run.py` is the hot-reload development entry point; `start.py` is the
+  production entry point. See `docs/development.md` for setup details.
 
-## 4. Operation & Safety Protocols
-- **DRY (Don't Repeat Yourself):** Strictly avoid duplicating logic. Refactor shared code into `/utils` or `/services` to prevent code drift.
-- **Confirmation Gates:** For any task affecting multiple files or changing **function signatures**, you MUST:
-  1. Propose the architectural plan first.
-  2. Wait for explicit user approval before writing code.
-- **Context Awareness:** Always check `app/main.py` or routes to verify the API responses and data structures before editing HTML/JS.
-- **Exception Handling:** Don't catch exceptions when we don't expect them to be normally raised. Let the code fail when something unexpected happens so that the problem can be fixed instead of silently misbehaving.
+## Architecture
 
-## 5. Real-Time Logic
-- **State Management:** SSE uses queue-based system via `stream_registry` and `stream_emit.py` for enqueuing stage events.
-- **Reliability:** Implement heartbeats and reconnection logic in SSE client implementations using EventSource API.
+- Keep FastAPI routes transport-focused. Put reusable business logic in the
+  appropriate service, CRUD, or utility module rather than `backend/main.py`
+  or route modules.
+- A capability intended for agent use should have a clear service boundary and
+  an appropriate REST surface; do not duplicate the underlying logic.
+- The frontend is vanilla ES modules and static HTML. Keep `app.js` for shared
+  behavior only; page-specific behavior belongs in that page's JavaScript file.
+- Preserve the established SSE queue flow (`stream_registry` and
+  `stream_emit.py`). SSE clients need heartbeat and reconnection behavior.
 
-## 6. Final Response format
-- **Direct Execution**: Provide code logic immediately. No conversational filler or "step-by-step" walk-throughs unless requested.
-- **Minimalist Summaries**: After any fix (FastAPI routes, html, DB queries), summarize in less than  3 bullets unless more explanation is necessary.
+## Change Discipline
+
+- Inspect the relevant route, request/response model, and existing tests before
+  changing API-connected frontend code.
+- Preserve unrelated working-tree changes. Do not stage, revert, or reformat
+  files outside the requested scope.
+- Prefer small, focused changes and shared helpers over duplicated logic.
+- Let unexpected failures surface; catch exceptions only when the code can
+  handle them deliberately and safely.
+- Propose a brief plan and wait for approval before API-contract changes,
+  database/data migrations, destructive operations, or broad cross-cutting
+  refactors. Small, scoped fixes and documentation updates do not need a gate.
+
+## Validation and Security
+
+- Run the most relevant tests; run `.venv/bin/python -m pytest` for broad
+  backend changes when practical.
+- Keep CI and Secret Scan passing. Do not weaken secret detection or commit
+  `.env`, tokens, private keys, generated logs, or Qdrant data.
+- Treat public deployment as a separate concern from publishing this source:
+  REST, A2A, MCP, ingestion, and SSE require deployment-specific
+  authentication, authorization, rate limits, and audit logging. Follow
+  `SECURITY.md`.
+- Update documentation when a public API, configuration, operational workflow,
+  or integration behavior changes.
+
+## Handoff
+
+- Report the outcome directly, list material files changed, and state the
+  validation performed.

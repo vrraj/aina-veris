@@ -6,8 +6,11 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
-  syntax-check:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -41,6 +44,6 @@ jobs:
           python -c "import yaml; yaml.safe_load(open('prompts/prompt_registry.yaml'))"
           python -c "import yaml; yaml.safe_load(open('docs/_config.yml'))"
 
-      - name: Validate documentation links
+      - name: Run test suite
         run: |
-          find docs -name "*.md" -exec grep -l "\[.*\](.*\.md)" {} \;
+          python -m pytest
