@@ -29,9 +29,9 @@ set the working directory to the repository root:
 {
   "mcpServers": {
     "aina-veris": {
-      "command": "/Users/raj/Documents/Raj/aina-veris/.venv/bin/python",
+      "command": "/absolute/path/to/aina-veris/.venv/bin/python",
       "args": ["-m", "backend.integrations.mcp.server"],
-      "cwd": "/Users/raj/Documents/Raj/aina-veris"
+      "cwd": "/absolute/path/to/aina-veris"
     }
   }
 }
