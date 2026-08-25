@@ -125,7 +125,7 @@ Aina-Veris separates the interfaces used to invoke research from the runtime tha
 
 - **Domain-isolated knowledge** — each domain can use its own Qdrant collection, embedding configuration, prompts, and retrieval policy.
 - **Multiple integration surfaces** — A2A, MCP, REST, SSE, and embeddable chat use the shared research runtime.
-- **Configurable retrieval** — dense, sparse, hybrid, RRF, ColBERT, and reranking stages can be selected by domain and runtime configuration.
+- **Balanced answers to multi-part questions** — optional query splitting and retrieval controls help prevent one part of a question from overshadowing the rest.
 - **Tool-assisted inference** — local tools, external MCP servers, and REST-backed capabilities can participate in research.
 - **Traceable execution** — citations, resolved queries, artifacts, SSE stages, token usage, and stage latency remain observable through the pipeline.
 
@@ -142,6 +142,22 @@ A research request moves through four major stages:
 The pipeline preserves more than the final answer. A completed request can carry its resolved queries, internal and external citations, tools invoked, generated artifacts, and stage-level token and cost information.
 
 SSE stage events provide real-time visibility while the pipeline is running.
+
+### Better coverage for multi-part questions
+
+When someone asks several things at once, Aina-Veris can break the request into
+smaller questions before finding evidence. This helps the final answer stay
+useful across the whole request.
+
+- **Break down the question** — turn a complex request into focused research
+  questions when needed.
+- **Find evidence for each part** — search and rank results separately instead
+  of letting one topic take over.
+- **Build a more balanced answer** — combine the strongest evidence while
+  keeping distinct parts of the request represented.
+
+These retrieval and reranking options are configurable, so simpler questions
+can use a faster path.
 
 ## Building a Domain Knowledge Base
 

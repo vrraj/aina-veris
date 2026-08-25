@@ -137,6 +137,20 @@ Human operators can use the included workspace to configure domains, prompts,
 models, and tools; inspect pipeline execution; test research behavior; and
 evaluate retrieval independently of answer generation.
 
+### Better coverage for multi-part questions
+
+When a question has several parts, Aina-Veris can split it into smaller
+research questions before looking for evidence. This helps the final response
+cover more of what the person asked.
+
+- **Break down the question** when that would make research clearer.
+- **Research each part separately** so one topic is less likely to dominate the
+  results.
+- **Bring the evidence together** into a more balanced, cited response.
+
+The feature is optional, and retrieval and reranking choices can be tuned for
+speed or deeper research.
+
 ## What Happens: Research Pipeline
 
 <p align="center">
