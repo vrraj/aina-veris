@@ -276,6 +276,9 @@ configuration into the research runtime.
 | Tune and evaluate retrieval | [Retrieval evaluation](retrieval-evals.md) · [Compound queries](compound-queries.md) |
 | Run locally or deploy safely | [Development](development.md) · [Deployment](deployment.md) · [Security](security.md) |
 | Diagnose a local installation | [Troubleshooting](troubleshooting.md) |
+[Designing Composable AI Systems](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce)
+    --- composable AI systems design
+
 
 ## Related repositories
 
