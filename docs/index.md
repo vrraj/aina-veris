@@ -267,17 +267,15 @@ configuration into the research runtime.
 
 ## Guides
 
-| Goal | Guide |
-|---|---|
-| Add a domain or ingest source material | [Configuration and ingestion](configuration.md) |
-| Publish a domain as an agent | [A2A research agents](a2a.md) |
-| Expose or consume MCP tools | [MCP integration](mcp_specs.md) · [Tool registry](tool_registry.md) |
-| Call REST, follow SSE stages, or embed chat | [API surfaces](api-reference.md) · [SSE](server-sent-events.md) · [Embeddable chat](embedded-chat.md) |
-| Tune and evaluate retrieval | [Retrieval evaluation](retrieval-evals.md) · [Compound queries](compound-queries.md) |
-| Run locally or deploy safely | [Development](development.md) · [Deployment](deployment.md) · [Security](security.md) |
-| Diagnose a local installation | [Troubleshooting](troubleshooting.md) |
-[Designing Composable AI Systems](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce)
-    --- composable AI systems design
+- Add a domain or ingest source material: [Configuration and ingestion](configuration.md)
+- Publish a domain as an agent: [A2A research agents](a2a.md)
+- Expose or consume MCP tools: [MCP integration](mcp_specs.md) · [Tool registry](tool_registry.md)
+- Call REST, follow SSE stages, or embed chat: [API surfaces](api-reference.md) · [SSE](server-sent-events.md) · [Embeddable chat](embedded-chat.md)
+- Tune and evaluate retrieval: [Retrieval evaluation](retrieval-evals.md) · [Compound queries](compound-queries.md)
+- Run locally or deploy safely: [Development](development.md) · [Deployment](deployment.md) · [Security](security.md)
+- Diagnose a local installation: [Troubleshooting](troubleshooting.md)
+
+Further reading: [Designing AI Systems as Composable Capabilities](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce).
 
 
 ## Related repositories
