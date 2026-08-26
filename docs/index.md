@@ -137,6 +137,20 @@ Human operators can use the included workspace to configure domains, prompts,
 models, and tools; inspect pipeline execution; test research behavior; and
 evaluate retrieval independently of answer generation.
 
+### Better coverage for multi-part questions
+
+When a question has several parts, Aina-Veris can split it into smaller
+research questions before looking for evidence. This helps the final response
+cover more of what the person asked.
+
+- **Break down the question** when that would make research clearer.
+- **Research each part separately** so one topic is less likely to dominate the
+  results.
+- **Bring the evidence together** into a more balanced, cited response.
+
+The feature is optional, and retrieval and reranking choices can be tuned for
+speed or deeper research.
+
 ## What Happens: Research Pipeline
 
 <p align="center">
@@ -230,6 +244,27 @@ registries**.
 
 <p align="center"><em>The Web UI provides domain-aware ingestion, knowledge-base administration, search, evaluation, and runtime configuration.</em></p>
 
+## Retrieval Evaluation and Tuning
+
+The Retrieval Evaluation workspace runs a prompt against a selected domain with
+local or hosted models, configurable retrieval settings, and optional compound
+query decomposition. It makes the retrieved evidence, query plan, coverage,
+and reranking results visible before answer generation.
+
+Use these experiments to tune domain prompts, retrieval candidate sets, and
+model choices against representative questions—then carry the validated
+configuration into the research runtime.
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/vrraj/aina-veris/main/images/aina-veris-retrieval-evaluation.png"
+    alt="Aina-Veris Retrieval Evaluation workspace for testing local and hosted models, domain prompts, retrieval settings, and compound queries"
+    style="max-width: 85%; height: auto;"
+  />
+</p>
+
+<p align="center"><em>Compare retrieval behavior across domains, models, retrieval settings, and compound-query plans.</em></p>
+
 ## Guides
 
 | Goal | Guide |
@@ -241,6 +276,9 @@ registries**.
 | Tune and evaluate retrieval | [Retrieval evaluation](retrieval-evals.md) · [Compound queries](compound-queries.md) |
 | Run locally or deploy safely | [Development](development.md) · [Deployment](deployment.md) · [Security](security.md) |
 | Diagnose a local installation | [Troubleshooting](troubleshooting.md) |
+[Designing Composable AI Systems](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce)
+    --- composable AI systems design
+
 
 ## Related repositories
 
