@@ -565,6 +565,11 @@ of the available evaluation controls and outputs.**
 | **Retrieval tuning** | [Retrieval evaluation guide](docs/retrieval-evals.md) · [Compound queries](docs/compound-queries.md) |
 | **Operations and deployment** | [Security](SECURITY.md) · [Development](docs/development.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) |
 
+## Further Reading
+
+- [Designing AI Systems as Composable Capabilities](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce)
+- [Anistroph: A Multi-Domain Predictive Analytics Architecture with AI Agent Access](https://medium.com/@vr.rajkumar99/designing-a-multi-domain-predictive-analytics-architecture-with-ai-agent-access-2476009916b2)
+
 ## Security
 
 Aina-Veris is a reference framework and does not include a built-in identity
