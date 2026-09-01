@@ -30,6 +30,18 @@ python3 -m venv .venv
 The Docker container supplies its own Python environment, so `.venv` is not
 required for a Docker-only run.
 
+## Dependencies
+
+When you intentionally change `requirements.txt`, refresh and commit the
+dependency lock with one command:
+
+```bash
+make lock
+```
+
+CI checks that `requirements.lock` is current and tells you to run this command
+if it is stale.
+
 ## Quality checks
 
 The maintained test suite is under `tests/`. Useful focused checks are:

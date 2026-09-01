@@ -595,6 +595,9 @@ make qdrant-logs
 # Seed sample data into an empty local environment
 make seed
 
+# After intentionally changing requirements.txt, refresh the committed CI lock
+make lock
+
 # MCP server contracts and interactive inspection
 .venv/bin/python -m pytest tests/mcp/test_research_server.py
 npx @modelcontextprotocol/inspector http://localhost:8100/mcp
