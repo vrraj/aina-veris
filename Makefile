@@ -1,4 +1,4 @@
-.PHONY: start stop rebuild start-hybrid stop-hybrid bg-start-chat start-debug start-docker start-qdrant stop-qdrant qdrant-logs qdrant-restart qdrant-status qdrant-collections qdrant-info qdrant-info-json qdrant-indexes
+.PHONY: start stop rebuild start-hybrid stop-hybrid bg-start-chat start-debug start-docker start-qdrant stop-qdrant qdrant-logs qdrant-restart qdrant-status qdrant-collections qdrant-info qdrant-info-json qdrant-indexes lock
 
 # Qdrant endpoint configuration. Prefer environment overrides; else fall back to backend Settings; else sensible defaults
 ifndef QDRANT_HOST	
@@ -8,6 +8,15 @@ ifndef QDRANT_PORT
 QDRANT_PORT := $(shell python3 -c "from backend.core.config import Settings; print(Settings().qdrant_port)" 2>/dev/null || echo 6333)
 endif
 UNAME := $(shell uname)
+
+# Refresh the Python 3.10 dependency lock used by CI. Run after intentionally
+# changing requirements.txt; Docker Desktop supplies Python and pip-tools.
+lock:
+	@docker run --rm --mount type=bind,src="$(PWD)",dst=/workspace \
+		--workdir /workspace python:3.10-slim sh -c \
+		'python -m pip install --disable-pip-version-check pip-tools==7.5.0 >/dev/null && \
+		pip-compile --upgrade --resolver=legacy --strip-extras \
+		--output-file=requirements.lock requirements.txt'
 
 # Start the full application stack using Docker Compose
 # Qdrant database runs in a Docker container
