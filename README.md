@@ -480,10 +480,10 @@ mcp_servers:
       env: TAVILY_API_KEY
 ```
 
-Set `TAVILY_API_KEY` in `.env`; credentials are not stored in the tool registry.
+Set `TAVILY_API_KEY` in `.env`.
 For testing, create a free trial account and API key at [Tavily](https://www.tavily.com/).
-At startup, Veris discovers tools from enabled MCP servers and merges them with
-the enabled local tool catalog.
+> At startup, Veris discovers tools from enabled MCP servers and merges them with
+the enabled local tool catalog. If an enabled MCP server is misconfigured, missing its API key, or unavailable, Aina-Veris logs a warning and omits that server’s tools rather than failing the entire app startup.
 
 ### Add local and REST-backed tools
 
