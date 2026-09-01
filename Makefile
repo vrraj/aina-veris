@@ -14,7 +14,7 @@ UNAME := $(shell uname)
 lock:
 	@docker run --rm --mount type=bind,src="$(PWD)",dst=/workspace \
 		--workdir /workspace python:3.10-slim sh -c \
-		'python -m pip install --disable-pip-version-check pip-tools==7.5.0 >/dev/null && \
+		'python -m pip install --disable-pip-version-check pip==24.3.1 pip-tools==7.5.0 >/dev/null && \
 		pip-compile --upgrade --resolver=legacy --strip-extras \
 		--output-file=requirements.lock requirements.txt'
 

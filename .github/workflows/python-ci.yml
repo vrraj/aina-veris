@@ -28,7 +28,7 @@ jobs:
 
       - name: Verify dependency lock
         run: |
-          python -m pip install --upgrade pip pip-tools==7.5.0
+          python -m pip install --upgrade pip==24.3.1 pip-tools==7.5.0
           pip-compile --quiet --resolver=legacy --strip-extras --output-file=requirements.lock requirements.txt
           if ! git diff --quiet -- requirements.lock; then
             echo "::error title=Dependency lock is stale::Run 'make lock' and commit requirements.lock."
