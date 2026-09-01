@@ -275,7 +275,10 @@ configuration into the research runtime.
 - Run locally or deploy safely: [Development](development.md) · [Deployment](deployment.md) · [Security](security.md)
 - Diagnose a local installation: [Troubleshooting](troubleshooting.md)
 
-Further reading: [Designing AI Systems as Composable Capabilities](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce).
+## Further Reading
+
+- [Designing AI Systems as Composable Capabilities](https://medium.com/@vr.rajkumar99/designing-composable-ai-systems-517c147cb8ce)
+- [Anistroph: A Multi-Domain Predictive Analytics Architecture with AI Agent Access](https://medium.com/@vr.rajkumar99/designing-a-multi-domain-predictive-analytics-architecture-with-ai-agent-access-2476009916b2)
 
 
 ## Related repositories
