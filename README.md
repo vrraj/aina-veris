@@ -421,7 +421,7 @@ Then run the setup script:
 bash scripts/rag_setup.sh
 ```
 
-> **Windows:** Use Docker Desktop and run `.\scripts\rag_windows_setup.bat`
+> **Windows Users:** Use Docker Desktop and run `.\scripts\rag_windows_setup.bat`
 > instead. See the [Windows setup guide](docs/windows-setup.md).
 
 The installer starts Qdrant and the application, then seeds the reference data.
