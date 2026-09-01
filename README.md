@@ -395,11 +395,11 @@ These registries provide the configuration inputs used by the transport and orch
   </tr>
 </table>
 
-## Quick Start
+## Quick Start (Install)
 
-**Prerequisites:** Docker Desktop with Docker Compose, Python 3.10+, and an
-OpenAI and/or Gemini API key. Local retrieval models are optional and download
-only when enabled.
+**Prerequisites:** Docker Desktop with Docker Compose, Python 3.10+ for the
+macOS/Linux installer, and an OpenAI and/or Gemini API key. Local retrieval
+models are optional and download only when enabled.
 
 ```bash
 git clone https://github.com/vrraj/aina-veris.git
@@ -421,9 +421,12 @@ Then run the setup script:
 bash scripts/rag_setup.sh
 ```
 
-It starts Qdrant and the application, creates `.venv`, installs Python
-dependencies, and seeds the reference data. When it completes, open
-[http://localhost:8100](http://localhost:8100).
+> **Windows Users:** Use Docker Desktop and run `.\scripts\rag_windows_setup.bat`
+> instead. See the [Windows setup guide](docs/windows-setup.md).
+
+The installer starts Qdrant and the application, then seeds the reference data.
+The macOS/Linux installer also creates `.venv` and installs local Python
+dependencies. When it completes, open [http://localhost:8100](http://localhost:8100).
 
 > **Existing Qdrant instance:** Set `DOCKER_QDRANT_HOST` and
 > `DOCKER_QDRANT_PORT` in `.env` before setup. The hostname must be reachable
