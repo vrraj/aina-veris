@@ -452,6 +452,11 @@ class Settings(BaseSettings):
     # Summary cache idle TTL (seconds)    # Optional: idle eviction TTL for summary cache (seconds). Defaults to 3600 if unset.
     summary_cache_idle_ttl_seconds: int | None = 3600
 
+    # Idle eviction TTL for local ONNX/FastEmbed models (seconds).
+    # Models unused for longer than this are released from memory and
+    # re-loaded on next access. Set to 0 to disable eviction.
+    model_cache_idle_ttl_seconds: int = 300
+
     # --- UI display toggles ---
     # Whether to append the Sources: block + structured sources for the main chat UI.
     display_sources_for_chat: bool = True

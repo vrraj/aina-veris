@@ -434,6 +434,46 @@ dependencies. When it completes, open [http://localhost:8100](http://localhost:8
 > host, use `host.docker.internal` on macOS or Windows. The bundled Qdrant
 > container can remain running, but Aina-Veris will use the configured instance.
 
+### Local Model Cache (Optional)
+
+Domains configured with `model_type: local` use ONNX models via FastEmbed
+for dense, sparse, and late-interaction (ColBERT) embeddings, plus a
+cross-encoder reranker. These models are loaded on demand and evicted
+from memory after a configurable idle timeout.
+
+**How it works:**
+- Models load lazily on the first request that needs them.
+- After `MODEL_CACHE_IDLE_TTL_SECONDS` (default 300s / 5 min) of no
+  requests using a model, it is released from memory via `gc.collect()`.
+- The next request re-loads it from the on-disk cache (no re-download).
+- Set to `0` to disable eviction and keep all models resident.
+
+**On-disk cache location:** `${LOCAL_MODELS_CACHE_PATH}/fastembed_cache/`
+(defaults to `~/models/fastembed_cache/`). This is bind-mounted into the
+container at `/root/models` and persists across container rebuilds.
+
+**Tuning in `.env`:**
+
+```dotenv
+# Idle eviction timeout for local ONNX models (seconds). Default: 300.
+MODEL_CACHE_IDLE_TTL_SECONDS=300
+
+# Host-side directory for downloaded model files.
+LOCAL_MODELS_CACHE_PATH=~/models
+```
+
+**Memory impact:** Each loaded model consumes 60MB–1.1GB of RAM depending
+on the model (see table below). With eviction enabled, only models
+actively serving requests stay resident.
+
+| Model | Disk size | Loaded by |
+|---|---|---|
+| `bge-small-en-v1.5` | 64 MB | Dense embeddings (local domains) |
+| `bge-base-en-v1.5` | 208 MB | Dense embeddings (local domains) |
+| `Splade_PP_en_v1` | 508 MB | Sparse embeddings (hybrid domains) |
+| `colbertv2.0` | 416 MB | Late-interaction retrieval eval |
+| `bge-reranker-base` | 1.1 GB | Cross-encoder reranking |
+
 ### Connect Aina-Veris to Claude Desktop via MCP
 
 Claude Desktop can connect to a local Aina-Veris checkout over **MCP stdio**.

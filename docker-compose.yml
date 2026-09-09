@@ -43,8 +43,8 @@ services:
         tag: "{{.Name}}/{{.ID}}"  # Add container name and ID to logs
     ports:
       - "8100:8100" # Expose your Uvicorn port (Host:Container)
-    command: python run.py # *** USES THE DEVELOPMENT SCRIPT run.py  with reload option in uvicorn***
-    # command: python start.py # *** USES THE PRODUCTION SCRIPT start.py ***
+    # command: python run.py # *** DEVELOPMENT: uses reload=True (auto-reload on file changes, but doubles memory during reloads) ***
+    command: python start.py # *** PRODUCTION: no reload, single process, stable memory (restart container to pick up code changes) ***
 
     # docker-compose should read .env file automatically if it exists
 

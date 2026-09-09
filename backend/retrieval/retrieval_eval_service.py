@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -16,24 +15,39 @@ from backend.retrieval.compound_reranking import (
 )
 from backend.retrieval.coverage import select_with_subquery_coverage
 from backend.retrieval.fusion import reciprocal_rank_fusion
+from backend.retrieval.model_cache import TTLModelCache
 
 
-@lru_cache(maxsize=2)
+def _idle_timeout() -> int:
+    return int(getattr(settings, "model_cache_idle_ttl_seconds", 300))
+
+
+_colbert_cache = TTLModelCache(idle_timeout=_idle_timeout())
+
+
 def _get_colbert_model(model_name: str, cache_dir: str):
     from fastembed import LateInteractionTextEmbedding
 
-    return LateInteractionTextEmbedding(model_name=model_name, cache_dir=cache_dir)
+    key = f"{model_name}:{cache_dir}"
+
+    def _loader():
+        return LateInteractionTextEmbedding(model_name=model_name, cache_dir=cache_dir)
+
+    return _colbert_cache.get(key, _loader)
 
 
-_cross_encoder_cache = {}
+_cross_encoder_cache = TTLModelCache(idle_timeout=_idle_timeout())
+
 
 def _get_cross_encoder_model(model_name: str, cache_dir: str):
     from fastembed.rerank.cross_encoder import TextCrossEncoder
 
-    cache_key = (model_name, cache_dir)
-    if cache_key not in _cross_encoder_cache:
-        _cross_encoder_cache[cache_key] = TextCrossEncoder(model_name=model_name, cache_dir=cache_dir)
-    return _cross_encoder_cache[cache_key]
+    key = f"{model_name}:{cache_dir}"
+
+    def _loader():
+        return TextCrossEncoder(model_name=model_name, cache_dir=cache_dir)
+
+    return _cross_encoder_cache.get(key, _loader)
 
 
 def _extract_text(item: Dict[str, Any]) -> str:

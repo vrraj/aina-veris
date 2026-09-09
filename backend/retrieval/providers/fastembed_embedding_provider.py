@@ -1,16 +1,26 @@
 import logging
 from typing import List
 
+from backend.retrieval.model_cache import TTLModelCache
 from backend.retrieval.schemas import EmbeddingSpec, EmbeddingResult
 
 
 logger = logging.getLogger(__name__)
 
 
+def _idle_timeout() -> int:
+    """Resolve the model idle TTL from settings (imported lazily to avoid cycles)."""
+    try:
+        from backend.core.config import settings
+        return int(getattr(settings, "model_cache_idle_ttl_seconds", 300))
+    except Exception:
+        return 300
+
+
 class FastEmbedEmbeddingProvider:
     def __init__(self):
-        self._models = {}
-        self._sparse_models = {}
+        self._models = TTLModelCache(idle_timeout=_idle_timeout())
+        self._sparse_models = TTLModelCache(idle_timeout=_idle_timeout())
 
     @staticmethod
     def _build_model_kwargs(spec: EmbeddingSpec):
@@ -35,39 +45,39 @@ class FastEmbedEmbeddingProvider:
         from fastembed import TextEmbedding
 
         key = f"{spec.model}:{spec.device or 'default'}"
-        if key not in self._models:
+
+        def _loader():
             kwargs = self._build_model_kwargs(spec)
             logger.debug(
                 "Initializing FastEmbed dense model='%s' cache_dir='%s'",
                 spec.model,
                 kwargs.get("cache_dir"),
             )
-
-            self._models[key] = TextEmbedding(
+            return TextEmbedding(
                 model_name=spec.model,
                 **kwargs,
             )
 
-        return self._models[key]
+        return self._models.get(key, _loader)
 
     def _get_sparse_model(self, spec: EmbeddingSpec):
         from fastembed import SparseTextEmbedding
 
         key = f"{spec.model}:{spec.device or 'default'}"
-        if key not in self._sparse_models:
+
+        def _loader():
             kwargs = self._build_model_kwargs(spec)
             logger.debug(
                 "Initializing FastEmbed sparse model='%s' cache_dir='%s'",
                 spec.model,
                 kwargs.get("cache_dir"),
             )
-
-            self._sparse_models[key] = SparseTextEmbedding(
+            return SparseTextEmbedding(
                 model_name=spec.model,
                 **kwargs,
             )
 
-        return self._sparse_models[key]
+        return self._sparse_models.get(key, _loader)
 
     def embed(self, texts: List[str], spec: EmbeddingSpec) -> EmbeddingResult:
         if spec.vector_type == "sparse":
