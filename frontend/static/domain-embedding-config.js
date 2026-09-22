@@ -9,6 +9,9 @@ const els = {
   status: document.getElementById('status'),
   saveBtn: document.getElementById('saveBtn'),
   reloadBtn: document.getElementById('reloadBtn'),
+  configGuideBtn: document.getElementById('configGuideBtn'),
+  configGuideDialog: document.getElementById('configGuideDialog'),
+  closeConfigGuideBtn: document.getElementById('closeConfigGuideBtn'),
 };
 
 function populateActiveDomainSelector(domains, activeDomain) {
@@ -159,6 +162,14 @@ els.applyActiveDomainBtn.addEventListener('click', async () => {
   } catch (err) {
     setStatus(`Failed to apply active domain: ${err.message || String(err)}`, 'error');
   }
+});
+
+els.configGuideBtn?.addEventListener('click', () => {
+  els.configGuideDialog?.showModal();
+});
+
+els.closeConfigGuideBtn?.addEventListener('click', () => {
+  els.configGuideDialog?.close();
 });
 
 window.addEventListener('DOMContentLoaded', async () => {

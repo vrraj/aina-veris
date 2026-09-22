@@ -473,3 +473,16 @@ input[type="file"]:focus {
 .collection-confirm-btn { background: #a53027; border: 1px solid #a53027; color: #fff; }
 .collection-confirm-btn:disabled { cursor: not-allowed; opacity: 0.45; }
 @media (max-width: 640px) { .collection-admin-intro { align-items: flex-start; flex-direction: column; gap: 0.75rem; } .collection-table { min-width: 42rem; } }
+
+.domain-config-guide-dialog { background: transparent; border: 0; max-width: 52rem; padding: 1rem; width: calc(100% - 2rem); }
+.domain-config-guide-dialog::backdrop { background: rgba(23, 23, 23, 0.48); }
+.domain-config-guide-card { background: #fff; border: 1px solid #e5e2dd; border-radius: 0.7rem; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2); max-height: calc(100vh - 4rem); overflow-y: auto; padding: 1.5rem; }
+.domain-config-guide-content { color: #3f3c38; font-size: 0.95rem; line-height: 1.55; margin-top: 1.25rem; }
+.domain-config-guide-content section + section { border-top: 1px solid #e5e2dd; margin-top: 1.15rem; padding-top: 1.15rem; }
+.domain-config-guide-content h3 { color: #171717; font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+.domain-config-guide-content p + p { margin-top: 0.7rem; }
+.domain-config-guide-content dl { display: grid; gap: 0.45rem 1rem; grid-template-columns: minmax(9rem, auto) 1fr; }
+.domain-config-guide-content dt { font-weight: 700; }
+.domain-config-guide-content dd { margin: 0; }
+.domain-config-guide-content pre { background: #f7f6f3; border: 1px solid #e5e2dd; border-radius: 0.45rem; color: #252321; font-size: 0.8rem; margin-top: 0.7rem; overflow-x: auto; padding: 0.9rem; }
+@media (max-width: 640px) { .domain-config-guide-content dl { grid-template-columns: 1fr; gap: 0.2rem; } .domain-config-guide-content dd { margin-bottom: 0.55rem; } }
