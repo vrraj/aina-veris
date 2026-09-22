@@ -25,6 +25,7 @@
           <p id="registryMeta" class="text-sm text-gray-600 mt-1">Loading config...</p>
         </div>
         <div class="flex gap-2">
+          <button id="configGuideBtn" type="button" class="px-3 py-2 rounded bg-blue-50 text-blue-800 hover:bg-blue-100">Config Guide</button>
           <button id="reloadBtn" class="px-3 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300">Reload</button>
           <button id="saveBtn" class="px-3 py-2 rounded">Save Changes</button>
         </div>
@@ -52,6 +53,59 @@
     <div id="status" class="text-sm"></div>
   </div>
 
-  <script src="/static/domain-embedding-config.js"></script>
+  <dialog id="configGuideDialog" class="domain-config-guide-dialog" aria-labelledby="configGuideTitle">
+    <div class="domain-config-guide-card">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="configGuideTitle" class="text-xl font-semibold text-gray-900">Domain embedding configuration guide</h2>
+          <p class="text-sm text-gray-600 mt-1">This guide remains available because the editor saves JSON, which does not retain YAML comments.</p>
+        </div>
+        <button id="closeConfigGuideBtn" type="button" class="text-gray-600 hover:text-gray-900 text-2xl leading-none" aria-label="Close configuration guide">×</button>
+      </div>
+
+      <div class="domain-config-guide-content">
+        <section>
+          <h3>What a domain controls</h3>
+          <p>Each entry under <code>domains</code> selects a knowledge base, embedding model, vector format, and retrieval strategy. <code>active_domain</code> selects the default at startup; <code>ACTIVE_DOMAIN</code> in <code>.env</code> overrides it.</p>
+        </section>
+        <section>
+          <h3>Required fields</h3>
+          <dl>
+            <dt><code>collection_name</code></dt><dd>The Qdrant collection that stores this domain’s vectors.</dd>
+            <dt><code>embedding_model_key</code></dt><dd>For example, <code>openai:embed_small</code>, <code>gemini:native-embed</code>, or <code>local:dense_default</code>.</dd>
+            <dt><code>model_type</code></dt><dd><code>hosted</code> for provider-backed embeddings; <code>local</code> for FastEmbed models.</dd>
+            <dt><code>vector_type</code></dt><dd><code>null</code> for the legacy unnamed dense vector, <code>dense</code> for a named dense vector, or <code>hybrid</code> for named dense plus SPLADE sparse vectors.</dd>
+            <dt><code>search_mode</code></dt><dd>Use <code>dense</code> for dense configurations and <code>hybrid</code> with <code>vector_type: hybrid</code>.</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>Collection compatibility</h3>
+          <p>Keep an embedding model paired with a compatible collection. Qdrant fixes vector dimensions when a collection is created: <code>openai:embed_small</code> is 1536D, while <code>local:dense_default</code> is 768D. Do not point a changed model at an incompatible existing collection.</p>
+          <p>If you change a model, vector type, or vector dimension, use a new collection or recreate the old one in <strong>Admin → Manage collections</strong>, then re-index the domain. Recreating permanently removes that collection’s indexed data.</p>
+        </section>
+        <section>
+          <h3>Hybrid retrieval</h3>
+          <p><code>hybrid</code> stores a dense vector and a SPLADE sparse vector, and requires <code>search_mode: hybrid</code>. SPLADE is loaded locally during hybrid indexing and search even when the dense embedding model is hosted.</p>
+        </section>
+        <section>
+          <h3>Starting example</h3>
+          <pre>{
+  "active_domain": "my_domain",
+  "domains": {
+    "my_domain": {
+      "collection_name": "document_index_my_domain",
+      "embedding_model_key": "local:dense_default",
+      "model_type": "local",
+      "vector_type": "hybrid",
+      "search_mode": "hybrid"
+    }
+  }
+}</pre>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/domain-embedding-config.js?v=config-guide-1"></script>
 </body>
 </html>
