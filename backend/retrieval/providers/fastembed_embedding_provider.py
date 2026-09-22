@@ -1,11 +1,16 @@
 import logging
-from typing import List
+import threading
+from typing import List, Tuple
 
 from backend.retrieval.model_cache import TTLModelCache
 from backend.retrieval.schemas import EmbeddingSpec, EmbeddingResult
 
 
 logger = logging.getLogger(__name__)
+
+
+_shared_cache_lock = threading.Lock()
+_shared_model_caches: Tuple[TTLModelCache, TTLModelCache] | None = None
 
 
 def _idle_timeout() -> int:
@@ -17,10 +22,29 @@ def _idle_timeout() -> int:
         return 300
 
 
+def _get_shared_model_caches() -> Tuple[TTLModelCache, TTLModelCache]:
+    """Return the process-wide dense and sparse FastEmbed model caches.
+
+    EmbeddingRouter is intentionally lightweight and may be constructed for
+    individual requests or chunks. The ONNX models, however, must outlive a
+    router instance so their configured idle TTL is meaningful.
+    """
+    global _shared_model_caches
+    with _shared_cache_lock:
+        if _shared_model_caches is None:
+            idle_timeout = _idle_timeout()
+            _shared_model_caches = (
+                TTLModelCache(idle_timeout=idle_timeout),
+                TTLModelCache(idle_timeout=idle_timeout),
+            )
+        return _shared_model_caches
+
+
 class FastEmbedEmbeddingProvider:
     def __init__(self):
-        self._models = TTLModelCache(idle_timeout=_idle_timeout())
-        self._sparse_models = TTLModelCache(idle_timeout=_idle_timeout())
+        # Share caches across every provider and router in this Python process.
+        # A model is reinitialized only after TTL eviction or process restart.
+        self._models, self._sparse_models = _get_shared_model_caches()
 
     @staticmethod
     def _build_model_kwargs(spec: EmbeddingSpec):

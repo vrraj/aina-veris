@@ -5,11 +5,16 @@ from backend.retrieval.providers.hosted_embedding_provider import HostedEmbeddin
 from backend.retrieval.providers.fastembed_embedding_provider import FastEmbedEmbeddingProvider
 
 
+_FASTEMBED_PROVIDER = FastEmbedEmbeddingProvider()
+
+
 class EmbeddingRouter:
     def __init__(self):
         self.providers = {
             "hosted": HostedEmbeddingProvider(),
-            "fastembed": FastEmbedEmbeddingProvider(),
+            # Reuse the process-wide provider. This preserves ONNX model state
+            # across routers created by indexing and retrieval code paths.
+            "fastembed": _FASTEMBED_PROVIDER,
         }
 
     def embed(self, texts: List[str], spec: EmbeddingSpec) -> EmbeddingResult:

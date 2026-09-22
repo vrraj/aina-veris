@@ -43,6 +43,7 @@ class EmbeddingsManager:
             port=settings.qdrant_port,
             collection_name=self.collection_name,
             embedding_model_key=self.embedding_model_key,
+            vector_type=self.vector_type,
         )
         # Now set the callback after the method is defined
         self.qdrant_db.generate_embeddings = self.generate_embeddings

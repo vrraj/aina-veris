@@ -8,14 +8,14 @@ from backend.chat.pipeline.errors import build_rate_limit_response
 from backend.chat.pipeline.contracts import PipelineExecutionContext, RetrievalStageResult
 from backend.embeddings.specs import resolve_embedding_spec
 from backend.llm.llm_client import LLMError
-from backend.retrieval.providers.fastembed_embedding_provider import FastEmbedEmbeddingProvider
+from backend.retrieval.embedding_router import _FASTEMBED_PROVIDER
 from backend.retrieval.orchestration import run_retrieval_orchestration
 from backend.retrieval.schemas import EmbeddingSpec
 from backend.stream_emit import emit_stage
 
 logger = logging.getLogger(__name__)
 
-_FASTEMBED_EMBEDDING_PROVIDER = FastEmbedEmbeddingProvider()
+_FASTEMBED_EMBEDDING_PROVIDER = _FASTEMBED_PROVIDER
 
 
 def run_retrieval_stage(

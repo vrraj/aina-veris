@@ -79,6 +79,7 @@ def build_domain_qdrant(active_domain: Optional[str]) -> QdrantDB:
         port=settings.qdrant_port,
         collection_name=domain_cfg["collection_name"],
         embedding_model_key=domain_cfg["embedding_model_key"],
+        vector_type=domain_cfg["vector_type"],
     )
 
 
