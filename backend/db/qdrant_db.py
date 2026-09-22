@@ -11,7 +11,14 @@ import math
 logger = logging.getLogger(__name__)
 
 class QdrantDB:
-    def __init__(self, host: str, port: int, collection_name: str, embedding_model_key: Optional[str] = None):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        collection_name: str,
+        embedding_model_key: Optional[str] = None,
+        vector_type: Optional[str] = None,
+    ):
         """
         Initialize QdrantDB connection
         
@@ -23,6 +30,9 @@ class QdrantDB:
         self.client = QdrantClient(host=host, port=port)
         self.collection_name = collection_name
         self.embedding_model_key = str(embedding_model_key or settings.embedding_model_key)
+        # This must come from the selected domain, not the process-wide active
+        # domain.  A request can explicitly target another domain.
+        self.vector_type = vector_type if vector_type is not None else settings.vector_type
         self.last_embedding_usage: Dict[str, int] = {"input_tokens": 0, "total_tokens": 0}
         
         # Ensure target exists. Use get_collection so aliases resolve correctly.
@@ -34,8 +44,7 @@ class QdrantDB:
             try:
                 vector_size = self._get_expected_dense_vector_size()
                 
-                # Check vector type from domain config
-                vector_type = settings.vector_type
+                vector_type = self.vector_type
                 
                 if vector_type == "hybrid":
                     # Create collection with named dense + sparse vectors
@@ -156,12 +165,26 @@ class QdrantDB:
         """Resolve expected dense vector size.
 
         Priority:
-        1) Model registry (llm_adapter) capabilities for self.embedding_model_key
-        2) local_models_registry-derived dense config dimensions
-        3) Collection vector config
-        4) settings.vector_size
+        1) Exact local model registry entry for a local model key
+        2) Model registry (llm_adapter) capabilities for self.embedding_model_key
+        3) local_models_registry-derived dense config dimensions
+        4) Collection vector config
+        5) settings.vector_size
         """
-        # 1) llm_adapter/model registry capabilities
+        # 1) Local model registry.  Local keys are not llm-adapter model
+        # registry keys, and must use their configured dimensions (for example,
+        # local:dense_default is 768 dimensions).
+        if self.embedding_model_key.startswith("local:"):
+            try:
+                from backend.retrieval.config_loader import get_model_config_by_key
+                local_cfg = get_model_config_by_key(self.embedding_model_key)
+                dims = local_cfg.get("dimensions")
+                if dims is not None and int(dims) > 0:
+                    return int(dims)
+            except Exception:
+                pass
+
+        # 2) llm_adapter/model registry capabilities
         try:
             info = get_model_info(model_key=self.embedding_model_key)
             dims = (getattr(info, "capabilities", {}) or {}).get("dimensions") if info is not None else None
@@ -170,7 +193,7 @@ class QdrantDB:
         except Exception:
             pass
 
-        # 2) local_models_registry (via retrieval config loader)
+        # 3) local_models_registry fallback (via retrieval config loader)
         try:
             from backend.retrieval.config_loader import get_model_config
             dense_cfg = get_model_config("dense") or {}
@@ -182,7 +205,7 @@ class QdrantDB:
         except Exception:
             pass
 
-        # 3) collection config
+        # 4) collection config
         try:
             collection_info = self.client.get_collection(self.collection_name)
             vectors_cfg = collection_info.config.params.vectors

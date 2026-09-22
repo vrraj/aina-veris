@@ -1,3 +1,29 @@
+# ==============================================================================
+# LOCAL MODELS AND RETRIEVAL CONFIGURATION
+# ==============================================================================
+# This registry combines retrieval runtime defaults with locally available
+# FastEmbed models. A model declared below is available to the application; it
+# is not downloaded, loaded into RAM, or automatically used merely because its
+# `enabled` value is true.
+#
+# Model activation:
+#   dense            Used by a domain configured with embedding_model_key:
+#                    local:dense_default.
+#   sparse           Used only by domains with vector_type: hybrid. SPLADE
+#                    vectors are generated for indexing and hybrid search.
+#   late_interaction Used only when a retrieval/evaluation request sets
+#                    use_colbert: true.
+#   reranker         Used only when local cross-encoder reranking is requested
+#                    with enable_cross_encoder_rerank: true.
+#
+# Model cache:
+# Models load lazily on first use into the Python process. They remain in RAM
+# until idle for MODEL_CACHE_IDLE_TTL_SECONDS (default: 300 seconds), then are
+# released on the next cache access. Set that environment variable to 0 to
+# retain models until the application container restarts. Downloaded model files
+# persist at ${LOCAL_MODELS_CACHE_PATH}/fastembed_cache.
+# ==============================================================================
+
 # Unified retrieval configuration
 # Combines runtime configuration (hosted vs local) with local model specifications
 
@@ -73,6 +99,8 @@ local_models:
   
   # TIER 2: LATE INTERACTION (Token-level precision for symbols/code)
   late_interaction:
+    # Makes this model selectable; it does not enable ColBERT for every search.
+    # ColBERT runs only when the request sets use_colbert: true.
     enabled: true 
     model_key: "local:late_interaction_default"
     name: "colbert-ir/colbertv2.0"
@@ -82,6 +110,8 @@ local_models:
 
   # TIER 3: RERANKER (Cross-Encoder for re-ranking)
   reranker:
+    # Makes this model selectable; it is loaded only for a request with
+    # enable_cross_encoder_rerank: true.
     enabled: true
     model_key: "local:reranker_default"
     name: "BAAI/bge-reranker-base"

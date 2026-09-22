@@ -218,7 +218,20 @@ inherit global research and citation rules, with optional domain-specific
 overrides in `prompts/prompt_registry.yaml`.
 
 Changing an embedding model, vector shape, chunking policy, or collection
-requires re-indexing the affected corpus.
+requires re-indexing the affected corpus. Qdrant fixes a collection's dense
+vector dimension when the collection is created. For example,
+`openai:embed_small` uses 1536 dimensions while the default local dense model
+uses 768. If a domain is changed from one to the other while retaining the
+same `collection_name`, recreate that collection before indexing again:
+
+```bash
+curl -X DELETE http://localhost:6335/collections/<collection_name>
+```
+
+This permanently removes the collection and its indexed documents. Back up or
+export any needed data first, restart the application if necessary, then
+re-index the domain; Aina-Veris will create the collection using the new model
+and vector configuration.
 
 ### Publish a domain to A2A and MCP
 
