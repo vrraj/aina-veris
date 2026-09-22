@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chat with Retrieved Content and available tools</title>
     <!-- Use local static assets; no external CDNs -->
-    <link rel="stylesheet" href="static/chat.css" />
+    <link rel="stylesheet" href="static/chat.css?v=active-collection-tooltip-1" />
     </style>
   </head>
   <body>
@@ -36,9 +36,9 @@
             <!-- Options will be populated dynamically -->
           </select>
         </div>
-        <div class="form-field" style="margin-bottom: 0.5rem; display:flex; align-items:center; gap:8px;">
-          <label for="active_collection" style="margin:0;">Active Collection:</label>
-          <span id="active_collection" style="font-weight: normal; color: #666;">Loading...</span>
+        <div class="form-field active-collection-row" style="margin-bottom: 0.5rem;" title="Active collection: Loading...">
+          <label for="active_collection">Active Collection:</label>
+          <span id="active_collection" title="Loading...">Loading...</span>
         </div>
         <h2 class="section-title">Parameters</h2>
         <form id="params_form" autocomplete="off">
@@ -428,7 +428,7 @@
       </div>
     </div>
 
-    <script src="static/chat.js?v=20260623-compound-query-1"></script>
+    <script src="static/chat.js?v=active-collection-tooltip-1"></script>
     <script>
       function toggleCollapsible(el, evt) {
         try {

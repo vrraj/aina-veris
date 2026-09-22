@@ -172,6 +172,27 @@ body {
 }
 .form-field:last-child { margin-bottom: 0; }
 
+/* Keep a long Qdrant collection name readable without expanding the sidebar. */
+.form-field.active-collection-row {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.form-field.active-collection-row > label {
+  flex: 0 0 auto;
+  margin: 0;
+  width: auto;
+}
+#active_collection {
+  color: #666;
+  flex: 1 1 auto;
+  font-weight: normal;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .form-field.checkbox-field {
   grid-template-columns: auto 1fr;
   align-items: start;
