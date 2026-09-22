@@ -52,6 +52,11 @@ from backend.api.domain_indexing import (
     strip_fragment_url as _strip_fragment_url,
 )
 from backend.api.security import enforce_origin_host
+from backend.services.collection_admin import (
+    CollectionNotFoundError,
+    list_collections as _list_collections,
+    recreate_collection as _recreate_collection,
+)
 from backend.integrations.mcp.http_transport import (
     MCPASGIMiddleware,
     create_mcp_http_app,
@@ -1524,6 +1529,51 @@ class DeleteByBaseURLRequest(BaseModel):
     url: Optional[str] = None
     base_url: Optional[str] = None
     active_domain: Optional[str] = None
+
+
+class RecreateCollectionRequest(BaseModel):
+    """Confirmation required before replacing a Qdrant collection."""
+
+    confirmation_name: str
+
+
+@app.get(
+    "/admin/collections",
+    tags=["4. Index Admin"],
+    summary="List Qdrant collections for administration",
+)
+def admin_list_collections():
+    """List collection metadata without exposing indexed document payloads."""
+    from qdrant_client import QdrantClient
+
+    try:
+        client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        return {"collections": _list_collections(client)}
+    except Exception as exc:
+        logger.exception("Error listing Qdrant collections")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post(
+    "/admin/collections/{collection_name}/recreate",
+    tags=["4. Index Admin"],
+    summary="Delete and recreate a Qdrant collection with its existing configuration",
+)
+def admin_recreate_collection(collection_name: str, request: RecreateCollectionRequest):
+    """Replace a collection only after the caller repeats its exact name."""
+    if request.confirmation_name != collection_name:
+        raise HTTPException(status_code=400, detail="Confirmation name must exactly match the collection name")
+
+    from qdrant_client import QdrantClient
+
+    try:
+        client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        return _recreate_collection(client, collection_name)
+    except CollectionNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' was not found")
+    except Exception as exc:
+        logger.exception("Error recreating Qdrant collection %s", collection_name)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get(

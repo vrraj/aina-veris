@@ -47,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'content-panel-list-docs': ['Knowledge Base Catalog', 'See indexed / embedded documents with chunk counts'],
             'content-panel-debug-index': ['View Payload from Qdrant Vector Store', 'View raw document payloads and metadata'],
             'content-panel-search': ['Vector-Based Semantic Search', 'Search documents using semantic similarity'],
-            'content-panel-delete-index': ['Delete Document from Knowledge Base', 'Preview and delete indexed chunks for a given document URL']
+            'content-panel-delete-index': ['Delete Document from Knowledge Base', 'Preview and delete indexed chunks for a given document URL'],
+            'content-panel-manage-collections': ['Manage Collections', 'Inspect Qdrant collections and recreate an empty collection when necessary']
         };
 
         const [title, subtitle] = panelHeaders[panelId] || ['Content', ''];
@@ -154,29 +155,131 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Handle hash-based navigation on page load
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'explore-knowledge-base') {
-        showContentPanel('content-panel-list-docs');
-        updateNavActiveState('openListDocsBtn');
-        initListDocsPanel();
-    } else if (hash === 'view-metadata') {
-        showContentPanel('content-panel-debug-index');
-        updateNavActiveState('openDebugBtn');
-        initDebugIndexPanel();
-    } else if (hash === 'semantic-search') {
-        showContentPanel('content-panel-search');
-        updateNavActiveState('openSearchBtn');
-        initSearchPanel();
-    } else if (hash === 'delete-documents') {
-        showContentPanel('content-panel-delete-index');
-        updateNavActiveState('openDeleteIndexBtn');
-        initDeleteIndexPanel();
-    } else if (hash.startsWith('index-')) {
-        const tabName = hash.replace('index-', '');
-        if (validTabs.has(tabName)) {
-            activateTab(tabName);
+    function routeFromHash() {
+        const hash = window.location.hash.replace('#', '');
+        if (hash === 'explore-knowledge-base') {
+            showContentPanel('content-panel-list-docs');
+            updateNavActiveState('openListDocsBtn');
+            initListDocsPanel();
+        } else if (hash === 'view-metadata') {
+            showContentPanel('content-panel-debug-index');
+            updateNavActiveState('openDebugBtn');
+            initDebugIndexPanel();
+        } else if (hash === 'semantic-search') {
+            showContentPanel('content-panel-search');
+            updateNavActiveState('openSearchBtn');
+            initSearchPanel();
+        } else if (hash === 'delete-documents') {
+            showContentPanel('content-panel-delete-index');
+            updateNavActiveState('openDeleteIndexBtn');
+            initDeleteIndexPanel();
+        } else if (hash === 'manage-collections') {
+            showContentPanel('content-panel-manage-collections');
+            updateNavActiveState('openManageCollectionsBtn');
+            initManageCollectionsPanel();
+        } else if (hash.startsWith('index-')) {
+            const tabName = hash.replace('index-', '');
+            if (validTabs.has(tabName)) activateTab(tabName);
         }
+    }
+
+    // Support both direct links and navigation within the current page.
+    window.addEventListener('hashchange', routeFromHash);
+    routeFromHash();
+
+    function initManageCollectionsPanel() {
+        const body = document.getElementById('collectionsTableBody');
+        const status = document.getElementById('collectionsStatus');
+        const refreshBtn = document.getElementById('collectionsRefreshBtn');
+        const dialog = document.getElementById('recreateCollectionDialog');
+        const summary = document.getElementById('recreateCollectionSummary');
+        const confirmation = document.getElementById('recreateCollectionConfirmation');
+        const confirmBtn = document.getElementById('recreateCollectionConfirmBtn');
+        const cancelBtn = document.getElementById('recreateCollectionCancelBtn');
+        if (!body || !status || !refreshBtn || !dialog || !summary || !confirmation || !confirmBtn || !cancelBtn) return;
+        const state = body._collectionAdminState || (body._collectionAdminState = { selectedCollection: null });
+
+        async function loadCollections(completionMessage = '') {
+            status.textContent = completionMessage || 'Loading collections…';
+            status.className = 'collection-status';
+            body.replaceChildren();
+            try {
+                const response = await fetch('/admin/collections');
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+                const collections = Array.isArray(data.collections) ? data.collections : [];
+                if (!collections.length) {
+                    const row = document.createElement('tr');
+                    const cell = document.createElement('td');
+                    cell.colSpan = 5;
+                    cell.className = 'collection-empty';
+                    cell.textContent = 'No Qdrant collections found.';
+                    row.appendChild(cell);
+                    body.appendChild(row);
+                }
+                collections.forEach((collection) => {
+                    const row = document.createElement('tr');
+                    const name = document.createElement('td'); name.textContent = collection.name;
+                    const points = document.createElement('td'); points.textContent = Number(collection.points_count || 0).toLocaleString();
+                    const vectors = document.createElement('td'); vectors.textContent = collection.vector_config || '—';
+                    const domains = document.createElement('td'); domains.textContent = (collection.domains || []).join(', ') || '—';
+                    const action = document.createElement('td');
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.className = 'collection-recreate-btn';
+                    button.setAttribute('aria-label', `Recreate ${collection.name}`);
+                    button.textContent = 'Recreate';
+                    button.addEventListener('click', () => openConfirmation(collection));
+                    action.appendChild(button);
+                    row.append(name, points, vectors, domains, action);
+                    body.appendChild(row);
+                });
+                status.textContent = completionMessage || `${collections.length} collection${collections.length === 1 ? '' : 's'} found.`;
+            } catch (error) {
+                status.textContent = `Could not load collections: ${error.message || error}`;
+                status.className = 'collection-status collection-status-error';
+            }
+        }
+
+        function openConfirmation(collection) {
+            state.selectedCollection = collection;
+            summary.textContent = `${collection.name} currently contains ${Number(collection.points_count || 0).toLocaleString()} point(s).`;
+            confirmation.value = '';
+            confirmBtn.disabled = true;
+            dialog.showModal();
+            confirmation.focus();
+        }
+
+        if (!body.dataset.collectionAdminInitialized) {
+            body.dataset.collectionAdminInitialized = 'true';
+            refreshBtn.addEventListener('click', loadCollections);
+            confirmation.addEventListener('input', () => {
+                confirmBtn.disabled = !state.selectedCollection || confirmation.value !== state.selectedCollection.name;
+            });
+            cancelBtn.addEventListener('click', () => dialog.close());
+            confirmBtn.addEventListener('click', async () => {
+                if (!state.selectedCollection || confirmation.value !== state.selectedCollection.name) return;
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Recreating…';
+                try {
+                    const response = await fetch(`/admin/collections/${encodeURIComponent(state.selectedCollection.name)}/recreate`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({confirmation_name: confirmation.value})
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+                    dialog.close();
+                    await loadCollections(`${data.name} was recreated. Deleted ${Number(data.deleted_points || 0).toLocaleString()} point(s).`);
+                    status.className = 'collection-status collection-status-success';
+                } catch (error) {
+                    status.textContent = `Could not recreate collection: ${error.message || error}`;
+                    status.className = 'collection-status collection-status-error';
+                } finally {
+                    confirmBtn.textContent = 'Recreate collection';
+                    confirmBtn.disabled = true;
+                }
+            });
+        }
+        loadCollections();
     }
 
     // List documents panel logic

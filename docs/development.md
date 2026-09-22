@@ -55,3 +55,16 @@ gitleaks detect --source . --no-git --redact
 
 Do not commit `.env`, `.venv`, Qdrant storage, logs, model caches, or provider
 credentials.
+
+## Collection administration
+
+The main UI's **Admin → Manage collections** panel lists the Qdrant
+collections available to the application. Recreating a collection permanently
+removes all of its points, then creates an empty collection with the same
+vector configuration and payload indexes. The UI requires the operator to type
+the exact collection name before enabling this operation.
+
+The same local administrative API is available at `GET /admin/collections` and
+`POST /admin/collections/{collection_name}/recreate`. The POST body must
+include a matching `confirmation_name`. Do not expose these endpoints publicly
+without authentication and authorization.

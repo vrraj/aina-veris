@@ -105,6 +105,16 @@
                     <span class="index-nav-icon" aria-hidden="true">⚙</span>
                     <span>Domain embedding config</span>
                 </button>
+
+                <div class="index-nav-section-label index-nav-section-spaced">Admin</div>
+                <a
+                    id="openManageCollectionsBtn"
+                    class="index-nav-item index-nav-item-danger"
+                    href="#manage-collections"
+                    title="View Qdrant collections and recreate an empty collection after confirmation">
+                    <span class="index-nav-icon" aria-hidden="true">▣</span>
+                    <span>Manage collections</span>
+                </a>
             </nav>
         </aside>
 
@@ -511,6 +521,38 @@
                 </div>
             </div>
 
+            <div id="content-panel-manage-collections" class="content-panel bg-white rounded-lg shadow-md p-6" role="tabpanel" style="display: none;">
+                <div class="collection-admin-intro">
+                    <div>
+                        <p class="text-sm text-gray-700">Recreating a collection permanently removes all indexed points, then creates an empty replacement with the same vector configuration and payload indexes.</p>
+                    </div>
+                    <button id="collectionsRefreshBtn" type="button" class="collection-refresh-btn">Refresh</button>
+                </div>
+                <div id="collectionsStatus" class="collection-status" role="status"></div>
+                <div class="collection-table-wrap">
+                    <table class="collection-table">
+                        <thead><tr><th>Collection</th><th>Points</th><th>Vectors</th><th>Assigned domains</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                        <tbody id="collectionsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <dialog id="recreateCollectionDialog" class="collection-dialog" aria-labelledby="recreateCollectionTitle">
+                <form method="dialog" class="collection-dialog-card">
+                    <div class="collection-dialog-heading">
+                        <span aria-hidden="true">△</span>
+                        <div><h2 id="recreateCollectionTitle">Recreate collection</h2><p id="recreateCollectionSummary"></p></div>
+                    </div>
+                    <p>This permanently deletes every indexed point, then creates an empty replacement with the same vector configuration and payload indexes.</p>
+                    <label for="recreateCollectionConfirmation">Type the collection name to confirm</label>
+                    <input id="recreateCollectionConfirmation" type="text" autocomplete="off" spellcheck="false">
+                    <div class="collection-dialog-actions">
+                        <button id="recreateCollectionCancelBtn" type="button" class="collection-cancel-btn">Cancel</button>
+                        <button id="recreateCollectionConfirmBtn" type="button" class="collection-confirm-btn" disabled>Recreate collection</button>
+                    </div>
+                </form>
+            </dialog>
+
             <footer class="text-center text-xs text-gray-500 mt-8">
               <p>
                 Optional seed data derived from 
@@ -522,6 +564,6 @@
         </div>
     </div>
     <script src="/static/app.js"></script>
-    <script src="/static/index-page.js"></script>
+    <script src="/static/index-page.js?v=collections-admin-1"></script>
 </body>
 </html>
