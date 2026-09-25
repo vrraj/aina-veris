@@ -14,7 +14,7 @@ mcp_servers:
   agis-markets:
     enabled: true
     transport: streamable_http
-    url: http://host.docker.internal:9001/mcp
+    url: http://host.docker.internal:9000/mcp
     integration: agis_markets
   tavily-search:
     enabled: true
