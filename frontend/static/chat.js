@@ -112,6 +112,13 @@
   }
 
   // Update active collection display based on domain selection
+  function setActiveCollectionText(element, text) {
+    const value = String(text || 'Unknown');
+    element.textContent = value;
+    element.title = value;
+    element.closest('.active-collection-row')?.setAttribute('title', `Active collection: ${value}`);
+  }
+
   async function updateActiveCollectionDisplay() {
     const activeDomainSelect = qs('#active_domain');
     const activeCollectionSpan = qs('#active_collection');
@@ -119,7 +126,7 @@
 
     const domain = activeDomainSelect.value || '';
     if (!domain) {
-      activeCollectionSpan.textContent = 'Loading...';
+      setActiveCollectionText(activeCollectionSpan, 'Loading...');
       return;
     }
 
@@ -127,13 +134,13 @@
       const resp = await fetch(`/api/config/domain/${domain}`);
       if (resp.ok) {
         const data = await resp.json();
-        activeCollectionSpan.textContent = data.collection_name || 'Unknown';
+        setActiveCollectionText(activeCollectionSpan, data.collection_name);
       } else {
-        activeCollectionSpan.textContent = 'Unknown';
+        setActiveCollectionText(activeCollectionSpan, 'Unknown');
       }
     } catch (e) {
       console.debug('Failed to fetch collection info', e);
-      activeCollectionSpan.textContent = 'Unknown';
+      setActiveCollectionText(activeCollectionSpan, 'Unknown');
     }
   }
 
@@ -1402,12 +1409,7 @@
                 'document_index_gemini': 'Gemini (document_index_gemini)'
               };
               const displayName = collectionNames[config.collection_name] || config.collection_name;
-              activeCollectionEl.textContent = displayName;
-              
-              // Also show the active domain if available
-              if (config.active_domain) {
-                activeCollectionEl.textContent += ` [domain: ${config.active_domain}]`;
-              }
+              setActiveCollectionText(activeCollectionEl, displayName);
             }
           } catch (e) {
             console.debug('Could not display active collection:', e);
