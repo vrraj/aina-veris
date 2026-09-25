@@ -97,6 +97,17 @@ generated artifacts, and streaming responses**.
   <em>Inline and popup embedding options. Click to view full size.</em>
 </p>
 
+### How Aina Veris Manages Compound Queries
+
+A compound request is handled through **query expansion**: the question is
+rewritten and split into focused subqueries, each retrieved and reranked
+independently, then fused with **Reciprocal Rank Fusion** so every part of the
+request is represented in the final grounded answer.
+
+<p align="center">
+  <img src="images/compound-query-aina-veris.png" width="100%" alt="Aina-Veris splitting a compound question about Mount Kilimanjaro and Mount Whitney into subqueries, researching each part, calling the get_weather tool, and returning a balanced cited answer" />
+</p>
+
 ## Shared Runtime, Different Research Domains
 
 Each domain maintains its own **knowledge collection, embedding configuration,
