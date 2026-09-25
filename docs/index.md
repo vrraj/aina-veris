@@ -129,6 +129,28 @@ artifacts, and streaming research pipeline**.
   <em>Inline and popup research experiences powered by Aina-Veris. Click to view full size.</em>
 </p>
 
+<h3>How Aina Veris Manages Compound Queries</h3>
+
+<p>
+A compound request is handled through <strong>query expansion</strong>: the
+question is rewritten and split into focused subqueries, each retrieved and
+reranked independently, then fused with
+<strong>Reciprocal Rank Fusion</strong> so every part of the request is
+represented in the final grounded answer.
+</p>
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/vrraj/aina-veris/main/images/compound-query-aina-veris.png">
+    <img
+      src="https://raw.githubusercontent.com/vrraj/aina-veris/main/images/compound-query-aina-veris.png"
+      alt="Aina-Veris splitting a compound question about Mount Kilimanjaro and Mount Whitney into subqueries, researching each part, calling the get_weather tool, and returning a balanced cited answer"
+      style="max-width: 75%; height: auto;"
+    />
+  </a>
+</p>
+
+<p align="center"><em>Compound query expansion, per-subquery retrieval and reranking, and tool-assisted grounded synthesis. Click to view full size.</em></p>
+
 ## One runtime for agents, applications, and operators
 
 Aina-Veris exposes the same domain-scoped research runtime through A2A agents,
