@@ -44,15 +44,19 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 
 ### T1 — Dependency and configuration
 
-- [~] T1.1 Install pinned `docling` into `.venv` (>= 7 days old release,
-  currently `2.125.0`) and verify `DocumentConverter` imports. — pip install
-- [ ] T1.2 Pin `docling` in `requirements.txt`; add settings block
+- [x] T1.1 Install pinned `docling` into `.venv` (>= 7 days old release,
+  currently `2.125.0`) and verify `DocumentConverter` imports. — pip install;
+  import verified. Note: docling pulls the torch stack (large).
+- [x] T1.2 Pin `docling` in `requirements.txt`; add settings block
   (`pdf_docling_*`) in `backend/core/config.py` + `.env.example` notes.
   Acceptance: `.venv/bin/python -c "from docling.document_converter import DocumentConverter"` OK.
+  — Verified; also bumped `pydantic-settings` to 2.15.0 and `beautifulsoup4`
+  to 4.15.0 (required by docling-core; app imports re-verified), and
+  regenerated `requirements.lock` via `make lock`.
 
 ### T2 — Extraction artifact (spec stage 1)
 
-- [ ] T2.1 `backend/extractor/docling_pdf_extractor.py`: convert PDF bytes with
+- [x] T2.1 `backend/extractor/docling_pdf_extractor.py`: convert PDF bytes with
   a pinned-options `DocumentConverter`, walk the `DoclingDocument` tree in
   reading order, and emit a typed artifact: items with `item_ref`, `kind`,
   `verbatim_text`, `page_index`, normalized `bbox` (top-left fractions,
@@ -61,11 +65,16 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   `highlight_status=unavailable`).
   Acceptance: unit test on synthetic PDF; headings, table rows, page numbers
   and normalized bboxes present; no Qdrant writes.
-- [ ] T2.2 Artifact persistence: serialize artifact JSON to
+  — `tests/test_docling_extractor.py` (programmatic DoclingDocument, no model
+  inference): 17 passed. Opt-in e2e conversion test (RUN_DOCLING_E2E=1)
+  passed against a drawn-table PDF: table headers/rows, bboxes, page numbers
+  verified.
+- [x] T2.2 Artifact persistence: serialize artifact JSON to
   `pdf_docling_artifact_dir` as `sha256:<document_id>.json` with checksum;
   return `artifact_uri`. (PDF byte storage + authorized serving is deferred
   with stage 5; artifact keeps geometry for later citation use.)
   Acceptance: file written, round-trips, checksum matches.
+  — Round-trip + tamper-detection tests pass.
 
 ### T3 — Structure-aware chunker (spec stage 2)
 
@@ -135,3 +144,6 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 ## Change log
 
 - 2026-09-27: work track created on `feat/pdf-docling-pipeline`.
+- 2026-09-27: T1 done — docling 2.125.0 pinned, settings added, lock refreshed.
+- 2026-09-27: T2 done — Docling extractor with typed artifact, provenance
+  regions, table structure, artifact persistence with checksum.
