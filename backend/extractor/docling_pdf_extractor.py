@@ -105,6 +105,9 @@ class TableCellInfo:
     column_header: bool
     row_header: bool
     row_section: bool
+    # Raw cell bbox [l, b, r, t] in page units (BOTTOMLEFT origin) when the
+    # parser provides one; used for row-level highlight regions.
+    bbox: Optional[List[float]] = None
 
 
 @dataclass
@@ -327,6 +330,13 @@ def _table_block_from_item(item: "TableItem", doc: "DoclingDocument") -> TableBl
     num_cols = int(getattr(data, "num_cols", 0) or 0)
 
     for c in getattr(data, "table_cells", []) or []:
+        cell_bbox = None
+        raw_bbox = getattr(c, "bbox", None)
+        if raw_bbox is not None:
+            try:
+                cell_bbox = [float(raw_bbox.l), float(raw_bbox.b), float(raw_bbox.r), float(raw_bbox.t)]
+            except (TypeError, ValueError):
+                cell_bbox = None
         cells.append(
             TableCellInfo(
                 text=str(getattr(c, "text", "") or ""),
@@ -337,6 +347,7 @@ def _table_block_from_item(item: "TableItem", doc: "DoclingDocument") -> TableBl
                 column_header=bool(getattr(c, "column_header", False)),
                 row_header=bool(getattr(c, "row_header", False)),
                 row_section=bool(getattr(c, "row_section", False)),
+                bbox=cell_bbox,
             )
         )
 

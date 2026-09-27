@@ -31,67 +31,16 @@ from backend.extractor.docling_pdf_extractor import (
 from docling_core.types.doc import (
     BoundingBox,
     CoordOrigin,
-    DoclingDocument,
-    ProvenanceItem,
 )
 from docling_core.types.doc.items.table.table_data import TableCell, TableData
 
-PAGE_W, PAGE_H = 600.0, 800.0
-PAGES = {0: {"width": PAGE_W, "height": PAGE_H}}
-
-
-def _prov(page_no, l, b, r, t, origin=CoordOrigin.BOTTOMLEFT):
-    return ProvenanceItem(
-        page_no=page_no,
-        bbox=BoundingBox(l=l, b=b, r=r, t=t, coord_origin=origin),
-        charspan=(0, 0),
-    )
-
-
-def _spec_table_cells():
-    return [
-        TableCell(text="Parameter", start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1, row_span=1, col_span=1, column_header=True, row_header=False, row_section=False),
-        TableCell(text="Conditions", start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=1, end_col_offset_idx=2, row_span=1, col_span=1, column_header=True, row_header=False, row_section=False),
-        TableCell(text="Unit", start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=2, end_col_offset_idx=3, row_span=1, col_span=1, column_header=True, row_header=False, row_section=False),
-        TableCell(text="Supply voltage", start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=0, end_col_offset_idx=1, row_span=1, col_span=1, column_header=False, row_header=False, row_section=False),
-        TableCell(text="Ta=25C", start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=1, end_col_offset_idx=2, row_span=1, col_span=1, column_header=False, row_header=False, row_section=False),
-        TableCell(text="32 V", start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=2, end_col_offset_idx=3, row_span=1, col_span=1, column_header=False, row_header=False, row_section=False),
-    ]
-
-
-def build_datasheet_doc() -> DoclingDocument:
-    """Programmatic datasheet: heading, prose, spec table, nested heading."""
-    doc = DoclingDocument(name="test")
-    doc.add_page(page_no=1, size={"width": PAGE_W, "height": PAGE_H})
-    doc.add_title(
-        text="LM358 Datasheet",
-        prov=_prov(1, 50, 740, 400, 780),
-    )
-    doc.add_heading(
-        text="Electrical Characteristics",
-        level=1,
-        prov=_prov(1, 50, 680, 350, 720),
-    )
-    doc.add_text(
-        label="paragraph",
-        text="The LM358 operates from a single supply over 3V to 32V.",
-        prov=_prov(1, 50, 620, 500, 660),
-    )
-    doc.add_table(
-        data=TableData(num_rows=2, num_cols=3, table_cells=_spec_table_cells()),
-        prov=_prov(1, 50, 500, 550, 600),
-    )
-    doc.add_heading(
-        text="Typical Application",
-        level=2,
-        prov=_prov(1, 50, 440, 300, 480),
-    )
-    doc.add_text(
-        label="paragraph",
-        text="Suitable for battery-operated devices.",
-        prov=_prov(1, 50, 380, 400, 420),
-    )
-    return doc
+from docling_fixtures import (
+    PAGE_H,
+    PAGE_W,
+    PAGES,
+    _prov,
+    build_datasheet_doc,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +138,8 @@ class TestWalkDocument:
         items, _, _ = _walk_document(doc, PAGES)
         table = next(i for i in items if i.kind == "table")
         assert table.table is not None
-        assert table.table.col_headers == ["Parameter", "Conditions", "Unit"]
-        assert table.table.rows[1] == ["Supply voltage", "Ta=25C", "32 V"]
+        assert table.table.col_headers == ["Parameter", "Value"]
+        assert table.table.rows[1] == ["Supply voltage", "32 V"]
         # verbatim_text carries the markdown rendering
         assert "Supply voltage" in table.verbatim_text
 

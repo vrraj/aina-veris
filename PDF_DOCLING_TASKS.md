@@ -78,7 +78,7 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 
 ### T3 — Structure-aware chunker (spec stage 2)
 
-- [ ] T3.1 `backend/extractor/docling_chunks.py`: build chunks from artifact
+- [x] T3.1 `backend/extractor/docling_chunks.py`: build chunks from artifact
   items, not exported Markdown. Prose: split at paragraphs/sentences within a
   section, ~300-600 token budget (cl100k, consistent with existing pipeline),
   `embedding_text` prefixed with title + section breadcrumb; `display_text`
@@ -90,6 +90,8 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   Acceptance: unit tests — token budget respected, no chunk crosses unrelated
   sections, table groups repeat headers, every value keeps parameter/unit,
   all chunks resolve to `item_refs` or mark location unavailable.
+  — `tests/test_docling_chunks.py` passes; page headers/footers excluded from
+  embedding; row_kv chunks carry row-level regions (union of cell bboxes).
 
 ### T4 — Indexing adapter (spec stage 3, additive)
 
@@ -147,3 +149,6 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 - 2026-09-27: T1 done — docling 2.125.0 pinned, settings added, lock refreshed.
 - 2026-09-27: T2 done — Docling extractor with typed artifact, provenance
   regions, table structure, artifact persistence with checksum.
+- 2026-09-27: T3 done — structure-aware chunker: prose sentence packing with
+  section breadcrumbs, table row groups with repeated headers, row-level
+  key/value chunks with row-granularity regions.
