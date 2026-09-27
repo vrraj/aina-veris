@@ -520,6 +520,19 @@ class Settings(BaseSettings):
     # Back-compat alias used by older code paths (prefer pdf_header_footer_filter going forward)
     header_footer_filter: bool = True
 
+    # --- Docling PDF pipeline (POST /index-pdf-docling, additive path) ---
+    # Writes go to a dedicated "<domain_collection>_docling_v1" collection so
+    # the legacy /pdf path and its collections stay untouched.
+    pdf_docling_enabled: bool = True  # Feature gate for the /index-pdf-docling route
+    pdf_docling_artifact_dir: str = "docling_artifacts"  # Extraction artifact store (JSON, outside Qdrant)
+    pdf_docling_chunk_size: int = 500  # Embedding token budget per chunk (target 300-600)
+    pdf_docling_chunk_overlap: int = 50  # Minimal overlap for prose sentence splits
+    pdf_docling_table_rows_per_chunk: int = 12  # Data rows per table row-group chunk
+    pdf_docling_min_rows_row_repr: int = 8  # Tables with more rows than this also get row-level key/value chunks
+    pdf_docling_collection_suffix: str = "_docling_v1"  # Suffix for the dedicated Qdrant collection
+    pdf_docling_do_ocr: bool = False  # Enable Docling OCR (rapidocr) for scanned pages
+    pdf_docling_table_mode: str = "accurate"  # Docling TableFormerMode: "fast" or "accurate"
+
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100
 
