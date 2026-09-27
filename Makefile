@@ -1,4 +1,4 @@
-.PHONY: start stop rebuild start-hybrid stop-hybrid bg-start-chat start-debug start-docker start-qdrant stop-qdrant qdrant-logs qdrant-restart qdrant-status qdrant-collections qdrant-info qdrant-info-json qdrant-indexes lock
+.PHONY: start stop rebuild start-hybrid stop-hybrid bg-start-chat start-debug start-docker start-qdrant stop-qdrant qdrant-logs qdrant-restart qdrant-status qdrant-collections qdrant-info qdrant-info-json qdrant-indexes lock install-cpu
 
 # Qdrant endpoint configuration. Prefer environment overrides; else fall back to backend Settings; else sensible defaults
 ifndef QDRANT_HOST	
@@ -17,6 +17,12 @@ lock:
 		'python -m pip install --disable-pip-version-check pip==24.3.1 pip-tools==7.5.0 >/dev/null && \
 		pip-compile --upgrade --resolver=legacy --strip-extras \
 		--output-file=requirements.lock requirements.txt'
+
+# Install Python dependencies into the repository .venv with CPU-only
+# PyTorch wheels (skips the CUDA/nvidia-* tree; ~200 MB vs ~4 GB on Linux).
+# Pair with PDF_DOCLING_ACCELERATOR_DEVICE=cpu for the Docling pipeline.
+install-cpu:
+	.venv/bin/pip install -r requirements-cpu.txt
 
 # Start the full application stack using Docker Compose
 # Qdrant database runs in a Docker container

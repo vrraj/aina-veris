@@ -133,6 +133,43 @@ Settings (see `.env.example`):
 | `PDF_DOCLING_COLLECTION_SUFFIX` | `_docling_v1` | Dedicated collection suffix. |
 | `PDF_DOCLING_DO_OCR` | `false` | Enable Docling OCR (rapidocr) for scanned pages. |
 | `PDF_DOCLING_TABLE_MODE` | `accurate` | Docling TableFormer mode (`fast` or `accurate`). |
+| `PDF_DOCLING_ACCELERATOR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, `mps`, `cuda`, `cuda:N`, `xpu`. |
+| `PDF_DOCLING_NUM_THREADS` | `4` | CPU threads for Docling model inference. |
+
+## CPU vs GPU
+
+Two independent knobs control whether Docling uses CPU or GPU:
+
+**1. Runtime device** (`PDF_DOCLING_ACCELERATOR_DEVICE`) selects the inference
+device per conversion, regardless of which PyTorch build is installed:
+
+- `auto` (default) — best available (CUDA on NVIDIA Linux, MPS on Apple
+  Silicon, CPU otherwise)
+- `cpu` — force CPU; avoids GPU/accelerator initialization entirely
+- `mps` / `cuda` / `cuda:N` / `xpu` — pin a specific accelerator
+
+`PDF_DOCLING_NUM_THREADS` bounds CPU inference threads (relevant in `cpu`
+mode and for CPU-side ops). Both apply only to the Docling pipeline; nothing
+else in the app is affected.
+
+**2. Install-time PyTorch build.** The default install (`requirements.txt` /
+`requirements.lock`) resolves PyTorch from PyPI, which on Linux bundles CUDA
+(~4 GB including the `nvidia-*` dependency tree). If you don't have or need
+an NVIDIA GPU, install with the CPU-only overlay instead:
+
+```bash
+make install-cpu
+# or: pip install -r requirements-cpu.txt
+```
+
+The overlay adds PyTorch's CPU wheel index
+(`https://download.pytorch.org/whl/cpu`). The CPU wheels carry a `+cpu`
+local version (e.g. `2.14.0+cpu`), which pip ranks above the plain PyPI
+build, so `torch`/`torchvision` resolve to the CPU variant and the
+`nvidia-*` packages are skipped entirely (~200 MB instead of ~4 GB on
+Linux; macOS is CPU-only either way). For the smallest footprint pair this
+with `PDF_DOCLING_ACCELERATOR_DEVICE=cpu`. GPU users install from
+`requirements.txt` / `requirements.lock` as usual.
 
 ## Operational notes
 

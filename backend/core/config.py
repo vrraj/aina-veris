@@ -532,6 +532,11 @@ class Settings(BaseSettings):
     pdf_docling_collection_suffix: str = "_docling_v1"  # Suffix for the dedicated Qdrant collection
     pdf_docling_do_ocr: bool = False  # Enable Docling OCR (rapidocr) for scanned pages
     pdf_docling_table_mode: str = "accurate"  # Docling TableFormerMode: "fast" or "accurate"
+    # Docling inference device: auto (best available), cpu, mps, cuda, cuda:N, xpu.
+    # "cpu" avoids GPU/torch accelerator init entirely; pair with the CPU-only
+    # PyTorch install (requirements-cpu.txt) for the smallest footprint.
+    pdf_docling_accelerator_device: str = "auto"
+    pdf_docling_num_threads: int = 4  # CPU threads for Docling model inference
 
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100

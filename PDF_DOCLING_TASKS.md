@@ -169,6 +169,21 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   — `docs/pdf-docling-pipeline.md` added; linked from `docs/index.md` and
   `docs/api-reference.md`.
 
+### T9 — CPU/GPU configuration
+
+- [x] T9.1 Runtime accelerator config: `pdf_docling_accelerator_device`
+  (`auto|cpu|mps|cuda|cuda:N|xpu`) + `pdf_docling_num_threads` settings wired
+  into Docling `AcceleratorOptions` (converter cache keyed on device/threads).
+  Acceptance: unit tests pass; conversion log shows `Accelerator device: 'cpu'`
+  when forced (default was `mps` on this Mac).
+- [x] T9.2 Install-time CPU-only PyTorch: `requirements-cpu.txt` overlay
+  (`--extra-index-url https://download.pytorch.org/whl/cpu` + `-r
+  requirements.txt`) + `make install-cpu`. Acceptance: verified in a Linux
+  container that the overlay resolves `torch-2.14.0+cpu` /
+  `torchvision-0.29.0+cpu` and pulls no `nvidia-*` packages. Default
+  requirements/lock unchanged (CUDA-capable); flipping the default is a
+  deployment decision, not taken here.
+
 ## Change log
 
 - 2026-09-27: work track created on `feat/pdf-docling-pipeline`.
@@ -184,3 +199,5 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 - 2026-09-27: T7 done — end-to-end validation against local Qdrant passed
   (dedicated hybrid collection, duplicate gate, stable-ID re-index, estimate
   no-write, dense retrieval with regions). T8 done — docs added and linked.
+- 2026-09-27: T9 done — CPU/GPU configuration: runtime accelerator device
+  setting wired into Docling, CPU-only PyTorch install overlay + make target.

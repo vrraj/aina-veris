@@ -231,6 +231,45 @@ class TestArtifact:
         assert compute_document_id(data).startswith("sha256:")
 
 
+class TestAcceleratorConfig:
+    def test_normalize_device_accepts_valid_values(self):
+        from backend.extractor.docling_pdf_extractor import _normalize_device
+
+        assert _normalize_device("cpu") == "cpu"
+        assert _normalize_device("CUDA") == "cuda"
+        assert _normalize_device("cuda:1") == "cuda:1"
+        assert _normalize_device("mps") == "mps"
+        assert _normalize_device("xpu") == "xpu"
+        assert _normalize_device("auto") == "auto"
+        assert _normalize_device(None) == "auto"
+
+    def test_normalize_device_falls_back_to_auto(self):
+        from backend.extractor.docling_pdf_extractor import _normalize_device
+
+        assert _normalize_device("tpu") == "auto"
+        assert _normalize_device("") == "auto"
+
+    def test_build_converter_wires_accelerator_options(self):
+        from backend.extractor.docling_pdf_extractor import _build_converter
+
+        converter = _build_converter(do_ocr=False, table_mode="fast", accelerator_device="cpu", num_threads=2)
+        from docling.datamodel.base_models import InputFormat
+
+        options = converter.format_to_options[InputFormat.PDF].pipeline_options
+        assert str(options.accelerator_options.device) == "cpu"
+        assert options.accelerator_options.num_threads == 2
+        assert options.do_ocr is False
+
+    def test_converter_cache_distinguishes_device(self):
+        from backend.extractor.docling_pdf_extractor import _get_converter
+
+        cpu = _get_converter(False, "fast", "cpu", 4)
+        auto = _get_converter(False, "fast", "auto", 4)
+        cpu_again = _get_converter(False, "fast", "cpu", 4)
+        assert cpu is cpu_again  # cached
+        assert cpu is not auto   # different device -> distinct converter
+
+
 # ---------------------------------------------------------------------------
 # End-to-end conversion (opt-in: downloads Docling models on first run)
 # ---------------------------------------------------------------------------

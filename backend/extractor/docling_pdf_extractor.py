@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 try:  # pragma: no cover - exercised implicitly by the guard below
     from docling.datamodel.base_models import ConversionStatus
     from docling.datamodel.document import DocumentStream
-    from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
+    from docling.datamodel.pipeline_options import (
+        AcceleratorOptions,
+        PdfPipelineOptions,
+        TableFormerMode,
+    )
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling_core.types.doc import (
         BoundingBox,
@@ -199,23 +203,54 @@ class DoclingExtraction:
 # Converter construction
 # ---------------------------------------------------------------------------
 
-_CONVERTER_CACHE: Dict[Tuple[bool, str], "DocumentConverter"] = {}
+_CONVERTER_CACHE: Dict[Tuple[bool, str, str, int], "DocumentConverter"] = {}
+
+_VALID_ACCELERATOR_DEVICES = {"auto", "cpu", "mps", "cuda", "xpu"}
 
 
-def _build_converter(do_ocr: bool, table_mode: str) -> "DocumentConverter":
+def _normalize_device(device: Any) -> str:
+    """Validate an accelerator device string ('auto' | 'cpu' | 'mps' |
+    'cuda' | 'cuda:N' | 'xpu'); invalid values fall back to 'auto'."""
+    raw = str(device or "auto").strip().lower()
+    if raw in _VALID_ACCELERATOR_DEVICES or raw.startswith("cuda:"):
+        return raw
+    logger.warning("Invalid accelerator device %r; falling back to 'auto'", device)
+    return "auto"
+
+
+def _build_converter(
+    do_ocr: bool,
+    table_mode: str,
+    accelerator_device: str,
+    num_threads: int,
+) -> "DocumentConverter":
     options = PdfPipelineOptions()
     options.do_ocr = bool(do_ocr)
     try:
         options.table_structure_options.mode = TableFormerMode(table_mode)
     except ValueError:
         options.table_structure_options.mode = TableFormerMode.ACCURATE
+    options.accelerator_options = AcceleratorOptions(
+        num_threads=max(1, int(num_threads)),
+        device=_normalize_device(accelerator_device),
+    )
     return DocumentConverter(
         format_options={"pdf": PdfFormatOption(pipeline_options=options)}
     )
 
 
-def _get_converter(do_ocr: bool, table_mode: str) -> "DocumentConverter":
-    key = (bool(do_ocr), str(table_mode))
+def _get_converter(
+    do_ocr: bool,
+    table_mode: str,
+    accelerator_device: str,
+    num_threads: int,
+) -> "DocumentConverter":
+    key = (
+        bool(do_ocr),
+        str(table_mode),
+        _normalize_device(accelerator_device),
+        max(1, int(num_threads)),
+    )
     if key not in _CONVERTER_CACHE:
         _CONVERTER_CACHE[key] = _build_converter(*key)
     return _CONVERTER_CACHE[key]
@@ -504,8 +539,14 @@ def extract_pdf_document(
     *,
     do_ocr: Optional[bool] = None,
     table_mode: Optional[str] = None,
+    accelerator_device: Optional[str] = None,
+    num_threads: Optional[int] = None,
 ) -> DoclingExtraction:
     """Convert PDF bytes with Docling and build the typed extraction artifact.
+
+    `accelerator_device` selects the inference device ('auto', 'cpu', 'mps',
+    'cuda', 'cuda:N', 'xpu'); `num_threads` bounds CPU inference threads.
+    Both default to the `pdf_docling_*` settings.
 
     Raises DoclingUnavailableError if docling is not installed and
     DoclingConversionError when conversion fails (no legacy fallback).
@@ -523,8 +564,12 @@ def extract_pdf_document(
         do_ocr = bool(getattr(app_settings, "pdf_docling_do_ocr", False))
     if table_mode is None:
         table_mode = str(getattr(app_settings, "pdf_docling_table_mode", "accurate"))
+    if accelerator_device is None:
+        accelerator_device = str(getattr(app_settings, "pdf_docling_accelerator_device", "auto"))
+    if num_threads is None:
+        num_threads = int(getattr(app_settings, "pdf_docling_num_threads", 4))
 
-    converter = _get_converter(do_ocr, table_mode)
+    converter = _get_converter(do_ocr, table_mode, accelerator_device, num_threads)
     document_id = compute_document_id(pdf_bytes)
     filename = "document.pdf"
     try:
