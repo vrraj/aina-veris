@@ -189,5 +189,6 @@ class TestService:
         )
         assert result["chunks_indexed"] > 0
         assert result["pipeline"] == "pdf_docling_v1"
+        assert "embedding_cost" in result
         assert calls["source_key"] == "https://x/lm358.pdf"
         assert calls["artifact_uri"].startswith("internal://documents/")

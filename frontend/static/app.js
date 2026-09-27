@@ -37,7 +37,7 @@ function getActiveDomain() {
 }
 
 // Form element references
-let pdfUrlInput, pdfFileInput, pdfMaxChunksInput, pdfSkipSectionsInput, pdfEstimateToggle, pdfForceDelete, pdfIndexBtn, pdfProgress;
+let pdfUrlInput, pdfFileInput, pdfMaxChunksInput, pdfSkipSectionsInput, pdfEstimateToggle, pdfForceDelete, pdfUseDocling, pdfIndexBtn, pdfProgress;
 let mwUrlInput, mwMaxChunksInput, mwSkipSectionsInput, mwApiUrlInput, mwUAInput, mwEstimateToggle, mwForceDelete, mwIndexBtn, mwProgress;
 let htmlUrlInput, htmlMaxChunksInput, htmlSkipSectionsInput, htmlEstimateToggle, htmlForceDelete, htmlIndexBtn, htmlProgress;
 let activeDomainSelect;
@@ -51,6 +51,7 @@ function initializeElements() {
     pdfSkipSectionsInput = document.getElementById('pdfSkipSections');
     pdfEstimateToggle = document.getElementById('pdfEstimateToggle');
     pdfForceDelete = document.getElementById('pdfForceDelete');
+    pdfUseDocling = document.getElementById('pdfUseDocling');
     pdfIndexBtn = document.getElementById('pdfIndexBtn');
     pdfProgress = document.getElementById('pdfProgress');
 
@@ -261,6 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const maxChunks = parseInt(pdfMaxChunksInput?.value || '0', 10) || 0;
             const forceDelete = !!(pdfForceDelete && pdfForceDelete.checked);
             const estimate = !!(pdfEstimateToggle && pdfEstimateToggle.checked);
+            const useDocling = !!(pdfUseDocling && pdfUseDocling.checked);
             const skipRaw = (pdfSkipSectionsInput?.value || '').trim();
             const skipSections = skipRaw ? skipRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined;
 
@@ -296,7 +298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 skip_sections: skipSections
             };
 
-            const resp = await fetch('/pdf', {
+            const resp = await fetch(useDocling ? '/index-pdf-docling' : '/pdf', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
@@ -373,10 +375,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } else {
                 const cost = (data.embedding_cost ?? 0);
+                const count = data.chunks_indexed ?? data.vectors_indexed ?? 0;
+                const countLabel = useDocling ? 'Chunks' : 'Vectors';
                 if (pdfProgress) {
                     pdfProgress.innerHTML = `
                         <div class="font-semibold text-gray-900">
-                            Done. Vectors: ${data.vectors_indexed ?? 0} | Tokens: ${data.tokens_used ?? 0} | Cost: $${Number(cost).toFixed(6)}
+                            Done. ${countLabel}: ${count} | Tokens: ${data.tokens_used ?? 0} | Cost: $${Number(cost).toFixed(6)}
                         </div>
                     `;
                 }

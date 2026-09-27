@@ -186,6 +186,17 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   torch build manually (documented). macOS: install from requirements.txt,
   not the lock (lock pins Linux +cpu wheels).
 
+### T10 — Web UI wiring
+
+- [x] T10.1 "Use Docling pipeline" checkbox on the Index PDF form
+  (`frontend/index.html`): when checked, the form posts to
+  `/index-pdf-docling` with the same domain/estimate/force-delete/
+  max-chunks/skip-sections inputs (`frontend/static/app.js`). Unchecked
+  keeps legacy `/pdf`. Success line shows chunks vs vectors; docling
+  response now includes `embedding_cost` for parity with the legacy cost
+  display. Acceptance: full pytest suite passes; form markup follows the
+  existing toggle-row pattern.
+
 ## Change log
 
 - 2026-09-27: work track created on `feat/pdf-docling-pipeline`.
@@ -203,3 +214,5 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   no-write, dense retrieval with regions). T8 done — docs added and linked.
 - 2026-09-27: T9 done — CPU/GPU configuration: runtime accelerator device
   setting wired into Docling, CPU-only PyTorch install overlay + make target.
+- 2026-09-27: T10 done — "Use Docling pipeline" checkbox wired into the Web
+  UI Index PDF form; `embedding_cost` added to the docling response.

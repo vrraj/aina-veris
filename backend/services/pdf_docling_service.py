@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from backend.api.domain_indexing import get_embedding_rate_per_mm_tokens
 from backend.core.config import settings
 from backend.extractor.docling_chunks import build_chunks
 from backend.extractor.docling_pdf_extractor import (
@@ -154,6 +155,9 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
         max_chunks=pdf_input.max_chunks or None,
     )
 
+    rate_per_mm = get_embedding_rate_per_mm_tokens()
+    embedding_cost = (result["tokens_used"] * rate_per_mm) / 1_000_000.0
+
     return {
         "message": "PDF indexed via Docling pipeline",
         "pipeline": "pdf_docling_v1",
@@ -167,6 +171,7 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
         "chunks_omitted_by_max_chunks": plan.omitted_chunks,
         "stale_points_deleted": result["stale_points_deleted"],
         "tokens_used": result["tokens_used"],
+        "embedding_cost": round(embedding_cost, 8),
         "parsing_warnings": extraction.warnings,
         "provenance_coverage": round(provenance_coverage, 4),
         "artifact_uri": artifact_uri,

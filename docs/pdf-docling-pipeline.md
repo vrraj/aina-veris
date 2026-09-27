@@ -19,6 +19,12 @@ viewer overlays.
 - Use `POST /index-pdf-docling` for technical/datasheet PDFs where table
   structure, part-number lookup, and precise citation regions matter.
 
+In the **Web UI** (Index PDF tab), check **Use Docling pipeline** before
+clicking *Index PDF* — the same form then submits to `/index-pdf-docling`
+with the selected domain, estimate, force-delete, max-chunks, and
+skip-sections settings. Unchecked, the form keeps using the legacy `/pdf`
+pipeline.
+
 ## How it works
 
 ```
@@ -97,6 +103,7 @@ Same shape as `POST /pdf`:
   "chunks_omitted_by_max_chunks": 0,
   "stale_points_deleted": 0,
   "tokens_used": 15230,
+  "embedding_cost": 0.0015230,
   "parsing_warnings": [],
   "provenance_coverage": 0.97,
   "artifact_uri": "internal://documents/sha256:..."
