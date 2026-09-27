@@ -176,13 +176,15 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   into Docling `AcceleratorOptions` (converter cache keyed on device/threads).
   Acceptance: unit tests pass; conversion log shows `Accelerator device: 'cpu'`
   when forced (default was `mps` on this Mac).
-- [x] T9.2 Install-time CPU-only PyTorch: `requirements-cpu.txt` overlay
-  (`--extra-index-url https://download.pytorch.org/whl/cpu` + `-r
-  requirements.txt`) + `make install-cpu`. Acceptance: verified in a Linux
-  container that the overlay resolves `torch-2.14.0+cpu` /
-  `torchvision-0.29.0+cpu` and pulls no `nvidia-*` packages. Default
-  requirements/lock unchanged (CUDA-capable); flipping the default is a
-  deployment decision, not taken here.
+- [x] T9.2 Install-time CPU-only PyTorch — **CPU is now the default** (per
+  maintainer decision): `requirements.txt` carries
+  `--extra-index-url https://download.pytorch.org/whl/cpu`, and
+  `requirements.lock` was regenerated: `torch==2.14.0+cpu`,
+  `torchvision==0.29.0+cpu`, **no nvidia-*/cuda-* packages** (~4 GB less on
+  Linux). Verified in a python:3.10-slim container that the full lock
+  dry-run resolves cleanly with the +cpu wheels. GPU users reinstall a CUDA
+  torch build manually (documented). macOS: install from requirements.txt,
+  not the lock (lock pins Linux +cpu wheels).
 
 ## Change log
 

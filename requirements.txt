@@ -1,3 +1,11 @@
+# CPU-only PyTorch by default: the cpu index wheels carry a "+cpu" local
+# version (e.g. 2.14.0+cpu) that pip ranks above the plain PyPI build, so
+# torch/torchvision resolve without the CUDA/nvidia-* tree (~200 MB vs ~4 GB
+# on Linux; macOS is CPU-only either way). GPU users: reinstall torch from a
+# CUDA index after this file, e.g.
+#   pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu126
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 pydantic==2.13.4
 # Pinned >=2.14.0 to satisfy docling-core; app settings verified against 2.15.0
 pydantic-settings==2.15.0

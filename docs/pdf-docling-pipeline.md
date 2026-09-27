@@ -152,24 +152,29 @@ device per conversion, regardless of which PyTorch build is installed:
 mode and for CPU-side ops). Both apply only to the Docling pipeline; nothing
 else in the app is affected.
 
-**2. Install-time PyTorch build.** The default install (`requirements.txt` /
-`requirements.lock`) resolves PyTorch from PyPI, which on Linux bundles CUDA
-(~4 GB including the `nvidia-*` dependency tree). If you don't have or need
-an NVIDIA GPU, install with the CPU-only overlay instead:
-
-```bash
-make install-cpu
-# or: pip install -r requirements-cpu.txt
-```
-
-The overlay adds PyTorch's CPU wheel index
+**2. Install-time PyTorch build (CPU by default).** `requirements.txt`
+resolves PyTorch from the CPU-only wheel index
 (`https://download.pytorch.org/whl/cpu`). The CPU wheels carry a `+cpu`
 local version (e.g. `2.14.0+cpu`), which pip ranks above the plain PyPI
 build, so `torch`/`torchvision` resolve to the CPU variant and the
 `nvidia-*` packages are skipped entirely (~200 MB instead of ~4 GB on
-Linux; macOS is CPU-only either way). For the smallest footprint pair this
-with `PDF_DOCLING_ACCELERATOR_DEVICE=cpu`. GPU users install from
-`requirements.txt` / `requirements.lock` as usual.
+Linux; macOS is CPU-only either way). `requirements.lock` (used by CI and
+the Docker image) is generated from `requirements.txt` and inherits the
+same CPU-only resolution.
+
+To use an NVIDIA GPU despite the CPU default, reinstall the CUDA build
+after installing requirements:
+
+```bash
+pip install --force-reinstall torch torchvision \
+  --index-url https://download.pytorch.org/whl/cu126   # or your CUDA variant
+```
+
+and set `PDF_DOCLING_ACCELERATOR_DEVICE=auto` or `cuda`.
+
+> **macOS note:** `requirements.lock` pins Linux CPU wheels
+> (`torch==...+cpu`), so install on macOS from `requirements.txt` (unpinned)
+> rather than the lock.
 
 ## Operational notes
 
