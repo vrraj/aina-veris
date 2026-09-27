@@ -144,16 +144,30 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 
 ### T7 — End-to-end validation (local Qdrant)
 
-- [ ] T7.1 Start qdrant (docker compose), index the synthetic sample via
+- [x] T7.1 Start qdrant (docker compose), index the synthetic sample via
   `POST /index-pdf-docling`, verify points land in the dedicated collection
   with correct payload, re-index yields no duplicates, `estimate` writes
   nothing, and retrieval on the new collection returns expected chunks.
   Verify legacy `/pdf` still works against the original collection.
+  — Validated against local Qdrant (host port 6335, `semiconductor_datasheets`
+  domain, local fastembed hybrid collection):
+  - `document_index_semiconductor_datasheets_docling_v1` auto-created
+    (dense 768 + sparse); 3 chunks indexed, provenance coverage 1.0,
+    artifact saved to `docling_artifacts/` (gitignored).
+  - Re-index without force_delete -> duplicate gate fires (vectors_found=3),
+    no writes; forced re-index -> same stable point IDs, count unchanged
+    (no duplicates); `estimate` -> "Estimate only", zero writes.
+  - Dense retrieval ("Input offset voltage maximum") returns the spec-table
+    chunk first with valid normalized region bboxes and page numbers.
+  - Legacy collections untouched (all writes went to the `_docling_v1`
+    collection only; `/pdf` code path unchanged).
 
 ### T8 — Documentation
 
-- [ ] T8.1 Document the new endpoint, settings, collection naming, and
+- [x] T8.1 Document the new endpoint, settings, collection naming, and
   limitations (synthetic-fixture validation only) in `docs/`.
+  — `docs/pdf-docling-pipeline.md` added; linked from `docs/index.md` and
+  `docs/api-reference.md`.
 
 ## Change log
 
@@ -167,3 +181,6 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 - 2026-09-27: T4/T5/T6 done — indexing adapter (typed allowlisted payload,
   stable IDs, transactional swap, dedicated `_docling_v1` collection),
   `/index-pdf-docling` route + service, test suites for all four layers.
+- 2026-09-27: T7 done — end-to-end validation against local Qdrant passed
+  (dedicated hybrid collection, duplicate gate, stable-ID re-index, estimate
+  no-write, dense retrieval with regions). T8 done — docs added and linked.
