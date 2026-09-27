@@ -122,6 +122,11 @@ except Exception as _e:
 # Expose backend model registry for frontend consumption
 app.include_router(model_keys_endpoint.router, tags=["3. Search & Chat"])
 
+# Additive Docling PDF ingestion pipeline (writes to its own Qdrant collection)
+from backend.api.endpoints import pdf_docling as pdf_docling_endpoint  # noqa: E402
+
+app.include_router(pdf_docling_endpoint.router)
+
 # Configure static file serving
 # This allows the frontend to be served from the same server as the API
 # Static files will be served from the frontend directory

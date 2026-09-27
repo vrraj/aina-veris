@@ -145,6 +145,44 @@ class PDFInput(BaseModel):
         description="List of section titles to skip (case-insensitive)."
     )
 
+class PDFDoclingInput(BaseModel):
+    """Request model for the additive Docling PDF pipeline (/index-pdf-docling).
+
+    Mirrors PDFInput semantics: `file` overrides `url` bytes while `url`
+    stays the canonical source; `estimate` plans without writes; `max_chunks`
+    truncates and reports omissions; `skip_sections` matches normalized
+    heading paths; `force_delete` re-indexes this pipeline's points only.
+    """
+    file: Optional[bytes] = Field(
+        None,
+        description="PDF file content (base64 encoded) for direct upload"
+    )
+    active_domain: Optional[str] = ""
+    filename: Optional[str] = Field(
+        None,
+        description="Original filename of the uploaded PDF"
+    )
+    url: Optional[str] = Field(
+        None,
+        description="URL of the PDF to download and process (canonical source)"
+    )
+    max_chunks: Optional[int] = Field(
+        0,
+        description="Maximum number of chunks to process (0 = no limit)"
+    )
+    force_delete: Optional[bool] = Field(
+        False,
+        description="Force re-indexing if this document already exists in the Docling pipeline"
+    )
+    estimate: Optional[bool] = Field(
+        False,
+        description="If true, return planned chunk count and provenance coverage without indexing"
+    )
+    skip_sections: List[str] = Field(
+        default_factory=list,
+        description="Section heading paths to skip (case-insensitive). Default: none."
+    )
+
 # Payload update request schema
 class PayloadUpdateRequest(BaseModel):
     url: str

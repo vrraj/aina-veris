@@ -95,7 +95,7 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 
 ### T4 — Indexing adapter (spec stage 3, additive)
 
-- [ ] T4.1 `backend/services/pdf_docling_indexing.py`: typed, allowlisted
+- [x] T4.1 `backend/services/pdf_docling_indexing.py`: typed, allowlisted
   payload builder (spec payload example), stable point ID
   `uuid5(domain, pipeline_version, source_key, document_id, chunk ordinal)`,
   `document_id = sha256(pdf bytes)`, `pipeline=pdf_docling_v1`. Write to
@@ -103,16 +103,20 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   domain embedding spec/router (dimensions must match domain model).
   Acceptance: re-index same document -> same point IDs (no duplicates);
   payload contains exactly the allowlisted fields.
-- [ ] T4.2 Transactional replace: stage extraction+embeddings, delete previous
+  — `tests/test_pdf_docling_indexing.py`: payload allowlist enforced;
+  re-index yields identical IDs; dedicated collection name.
+- [x] T4.2 Transactional replace: stage extraction+embeddings, delete previous
   points for `(document_id, pipeline)` only after successful upsert of the new
   version; failures leave prior version searchable. `estimate` writes nothing.
   No legacy fallback on Docling failure — visible error.
   Acceptance: unit tests with mocked Qdrant verify delete-after-upsert
   scoping and estimate no-write.
+  — Mocked-Qdrant tests pass: stale points retired only after upsert;
+  failed upsert deletes nothing; empty chunks write nothing.
 
 ### T5 — Route + service (spec integration section)
 
-- [ ] T5.1 `backend/api/endpoints/pdf_docling.py` router +
+- [x] T5.1 `backend/api/endpoints/pdf_docling.py` router +
   `PDFDoclingInput`/response schemas (reuse PDFInput semantics: `file`
   overrides `url` bytes, `url` canonical source; `estimate`, `max_chunks`
   reports omissions, `skip_sections` on normalized heading paths,
@@ -120,15 +124,23 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   `backend/main.py` with `enforce_origin_host` + domain resolution.
   Acceptance: route test (TestClient, mocked indexing) returns counters,
   pipeline id, document_id, warnings; legacy `/pdf` route untouched.
-- [ ] T5.2 Duplicate check for the new route filters on
+  — `tests/test_pdf_docling_route.py` (direct handler invocation; starlette
+  TestClient is incompatible with installed httpx): counters, warnings,
+  provenance coverage, error mapping (422/503/500), `/pdf` still registered.
+- [x] T5.2 Duplicate check for the new route filters on
   `(domain, source_key, pipeline)` only; cannot collide with legacy points.
+  — Filters on `(domain, document_id, pipeline)` in the dedicated collection;
+  legacy `/pdf` duplicate check untouched (different collection).
 
 ### T6 — Tests
 
-- [ ] T6.1 `tests/test_docling_extractor.py`, `tests/test_docling_chunks.py`,
+- [x] T6.1 `tests/test_docling_extractor.py`, `tests/test_docling_chunks.py`,
   `tests/test_pdf_docling_indexing.py`, `tests/test_pdf_docling_route.py`.
   Fixture: synthetic PDF generated with pymupdf (headings, a spec table with
   units/conditions, multicolumn text). Acceptance: full pytest suite passes.
+  — E2E conversion test is opt-in (`RUN_DOCLING_E2E=1`, downloads Docling
+  models on first run) to keep CI fast; unit tests are model-free via
+  programmatic DoclingDocument fixtures.
 
 ### T7 — End-to-end validation (local Qdrant)
 
@@ -152,3 +164,6 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
 - 2026-09-27: T3 done — structure-aware chunker: prose sentence packing with
   section breadcrumbs, table row groups with repeated headers, row-level
   key/value chunks with row-granularity regions.
+- 2026-09-27: T4/T5/T6 done — indexing adapter (typed allowlisted payload,
+  stable IDs, transactional swap, dedicated `_docling_v1` collection),
+  `/index-pdf-docling` route + service, test suites for all four layers.
