@@ -647,7 +647,7 @@ of the available evaluation controls and outputs.**
   <img src="images/aina-veris-retrieval-evals.png" width="100%" alt="Aina-Veris retrieval evaluation workbench showing retrieval configuration, reranking, subquery coverage, and compound-query decomposition" />
 </p>
 
-[Retrieval evaluation guide →](docs/retrieval-evals.md)
+[Retrieval evaluation guide →](docs/retrieval-evals.md) · [Retrieval evaluations usage guide →](retrieval-evaluations-usage-guide.md)
 
 ## Interfaces and Documentation
 
