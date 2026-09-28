@@ -114,6 +114,29 @@ Same shape as `POST /pdf`:
 highlight region. `parsing_warnings` surfaces Docling conversion errors and
 missing provenance for tables/sections.
 
+## Source citations and the PDF viewer
+
+Chat answers carry structured `sources` alongside the answer text. The chat
+UI renders them as a clickable list:
+
+- `file://` sources (uploaded PDFs) link to `/docling-document/{document_id}`.
+  When the chunk has `regions` with `bbox_norm`, the link instead opens the
+  built-in viewer at
+  `/pdf-viewer.html?doc={document_id}&page={n}&bbox={x0,y0,x1,y1}` — a
+  vendored pdf.js page that renders the cited page and draws the normalized
+  bounding box as a highlight. Chunks without regions fall back to the raw
+  `#page=N` link.
+- `http(s)` PDF sources deep-link with `#page=N` for the browser's built-in
+  viewer.
+- `http(s)` HTML/MediaWiki sources append a scroll-to-text fragment:
+  `#:~:text=...` built from the chunk text (whole text when ≤8 words, else
+  the first-4..last-4 word range). Heading `id` anchors already embedded in
+  the source URL are preserved, so links become `#id:~:text=...`.
+
+Because the PDF is persisted at index time, documents indexed before
+persistence existed must be re-indexed for `file://` links to resolve —
+there is no legacy fallback.
+
 ## Point payload (allowlisted)
 
 Each Qdrant point stores: `pipeline`, `pipeline_version`, `domain`,
@@ -207,8 +230,7 @@ and set `PDF_DOCLING_ACCELERATOR_DEVICE=auto` or `cuda`.
   datasheet PDFs before production use** — the fixture cannot establish
   scanning, rotation, or multi-column quality.
 - Retrieval currently targets the new collection directly. Hybrid dense +
-  sparse fusion tuning, citation rendering, and the PDF viewer highlight
-  overlay (spec stages 4–5) are deferred follow-up work tracked in
+  sparse fusion tuning (spec stage 4) is deferred follow-up work tracked in
   `PDF_DOCLING_TASKS.md`.
 - VLM figure descriptions and ColPali visual retrieval (spec stages 6–7)
   are optional later experiments.

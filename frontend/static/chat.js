@@ -857,9 +857,26 @@
     );
   }
 
-  // Build a deep link for a source. PDFs get "#page=N" so the browser's
-  // built-in viewer opens at the cited page. Uploaded (file://) docling
-  // documents are served back via /docling-document/{document_id}.
+  // Scroll-to-text fragment (WICG text directives): whole chunk text when
+  // <=8 words, else first-4..last-4 word range. Boundary punctuation is
+  // stripped; a mismatch degrades gracefully to opening the page.
+  function buildTextFragment(text) {
+    const words = String(text || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+      .filter(Boolean);
+    if (!words.length) return '';
+    const enc = (arr) => arr.map(encodeURIComponent).join('%20');
+    if (words.length <= 8) return `text=${enc(words)}`;
+    return `text=${enc(words.slice(0, 4))},${enc(words.slice(-4))}`;
+  }
+
+  // Build a deep link for a source:
+  //  - file:// uploads   -> served copy at /docling-document/{id}#page=N
+  //  - http(s) PDFs      -> url#page=N (built-in viewer jumps to the page)
+  //  - http(s) HTML/wiki -> url[#section-id]:~:text=... (anchor + scroll-to-text)
   // Returns null only when nothing navigable exists.
   function buildSourceHref(url, pl) {
     const raw = String(url || '').trim();
@@ -868,13 +885,24 @@
       (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number)
     );
     if (/^file:/i.test(raw) && pl.document_id) {
+      const region = Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].bbox_norm;
+      if (region && page) {
+        const bbox = region.map((n) => Number(n).toFixed(4)).join(',');
+        return `/pdf-viewer.html?doc=${encodeURIComponent(pl.document_id)}&page=${page}&bbox=${bbox}`;
+      }
       const base = `/docling-document/${encodeURIComponent(pl.document_id)}`;
       return page ? `${base}#page=${page}` : base;
     }
     if (!/^https?:/i.test(raw)) return null;
     const isPdf = /\.pdf($|[?#])/i.test(raw) || pl.document_type === 'pdf';
-    const base = raw.split('#')[0];
-    return page && isPdf ? `${base}#page=${page}` : base;
+    if (isPdf) {
+      const base = raw.split('#')[0];
+      return page ? `${base}#page=${page}` : base;
+    }
+    const frag = buildTextFragment(pl.text || pl.display_text);
+    if (!frag) return raw;
+    const hash = raw.indexOf('#');
+    return hash === -1 ? `${raw}#:~:${frag}` : `${raw}:~:${frag}`;
   }
 
   // Render a clickable sources list under an assistant bubble.

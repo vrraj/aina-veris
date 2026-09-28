@@ -232,3 +232,9 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   `GET /docling-document/{document_id}` so file:// uploads deep-link too;
   collection-name double-suffix guard. Rule: docs indexed before persistence
   must be re-indexed (no fallback paths kept).
+- 2026-09-28: Citation deep links + PDF viewer — chat source links now carry
+  scroll-to-text fragments for HTML/MediaWiki chunks (`#:~:text=` with whole
+  text <=8 words, else first-4..last-4 word range; existing heading IDs kept
+  as section anchors); file:// sources with regions open the new vendored
+  pdf.js viewer (`pdf-viewer.html?doc=..&page=..&bbox=..`) which renders the
+  cited page and draws the normalized `bbox_norm` highlight box.

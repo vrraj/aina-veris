@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF Source Viewer</title>
+  <style>
+    :root {
+      --bg: #f5f3ed;
+      --surface: #ffffff;
+      --text: #111111;
+      --muted: #666;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+      --highlight: rgba(37, 99, 235, 0.18);
+      --highlight-border: rgba(37, 99, 235, 0.85);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .title {
+      font-size: 13px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    header button {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    header button:disabled { opacity: 0.4; cursor: default; }
+    header .page-indicator { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    #status {
+      padding: 40px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    #status a { color: var(--accent); }
+    #page-wrap {
+      position: relative;
+      margin: 16px auto;
+      max-width: fit-content;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      display: none;
+    }
+    #pdf-canvas { display: block; }
+    #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
+    }
+    .region-box {
+      position: absolute;
+      background: var(--highlight);
+      border: 1.5px solid var(--highlight-border);
+      border-radius: 2px;
+      animation: region-pulse 1.6s ease-in-out 2;
+    }
+    @keyframes region-pulse {
+      0%, 100% { background: var(--highlight); }
+      50% { background: rgba(37, 99, 235, 0.35); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <button id="prev_page" type="button" aria-label="Previous page">◀</button>
+    <button id="next_page" type="button" aria-label="Next page">▶</button>
+    <span class="page-indicator" id="page_indicator">Page –</span>
+    <span class="title" id="doc_title"></span>
+    <a id="raw_link" href="#" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:var(--accent);white-space:nowrap;">Open raw PDF</a>
+  </header>
+  <div id="status">Loading…</div>
+  <div id="page-wrap">
+    <canvas id="pdf-canvas"></canvas>
+    <div id="overlay"></div>
+  </div>
+  <script type="module" src="static/pdf-viewer.js"></script>
+</body>
+</html>

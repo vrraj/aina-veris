@@ -416,6 +416,19 @@ async def chat_page():
     return FileResponse(os.path.join(frontend_dir, "ask.html"))
 
 
+# PDF source viewer route (HTML)
+@app.get(
+    "/pdf-viewer.html",
+    tags=["1. UI Pages"],
+    summary="PDF source viewer with region highlight (HTML)",
+    response_class=HTMLResponse,
+)
+async def pdf_viewer_page():
+    """Serve the PDF viewer page used for clickable source citations."""
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+    return FileResponse(os.path.join(frontend_dir, "pdf-viewer.html"))
+
+
 @app.get(
     "/chat-embed.html",
     tags=["1. UI Pages"],
