@@ -51,17 +51,98 @@ def _default_domain_embedding_config() -> Dict[str, Dict[str, Any]]:
     }
 
 
+# Named domain profiles: shorthand that expands to the full
+# model_type/vector_type/search_mode (+ default embedding_model_key) fields.
+# Explicit fields remain supported; when combined with a profile, structural
+# fields must agree with the profile or validation fails. embedding_model_key
+# is the one field a profile user may legitimately override (e.g. a different
+# hosted embedding model under the same profile).
+_DOMAIN_PROFILES: Dict[str, Dict[str, Any]] = {
+    # Legacy unnamed-vector format for collections indexed before named
+    # vectors existed. Kept for backward compatibility only.
+    "legacy-dense": {
+        "model_type": "hosted",
+        "embedding_model_key": "openai:embed_small",
+        "vector_type": None,
+        "search_mode": "dense",
+    },
+    "hosted-dense": {
+        "model_type": "hosted",
+        "embedding_model_key": "openai:embed_small",
+        "vector_type": "dense",
+        "search_mode": "dense",
+    },
+    "local-dense": {
+        "model_type": "local",
+        "embedding_model_key": "local:dense_default",
+        "vector_type": "dense",
+        "search_mode": "dense",
+    },
+    # Hosted dense model + local SPLADE sparse vectors.
+    "hosted-hybrid": {
+        "model_type": "hosted",
+        "embedding_model_key": "openai:embed_small",
+        "vector_type": "hybrid",
+        "search_mode": "hybrid",
+    },
+    # Local BGE dense + local SPLADE sparse, RRF-fused. Best default for
+    # technical corpora (part numbers, units, exact terms).
+    "local-hybrid": {
+        "model_type": "local",
+        "embedding_model_key": "local:dense_default",
+        "vector_type": "hybrid",
+        "search_mode": "hybrid",
+    },
+}
+
+
 class DomainEmbeddingEntry(BaseModel):
     collection_name: str
-    embedding_model_key: str
-    model_type: Literal["hosted", "local"]
+    profile: Optional[Literal[
+        "legacy-dense", "hosted-dense", "local-dense", "hosted-hybrid", "local-hybrid"
+    ]] = None
+    embedding_model_key: Optional[str] = None
+    model_type: Optional[Literal["hosted", "local"]] = None
     vector_type: Optional[Literal["dense", "hybrid"]] = None
-    search_mode: Literal["dense", "hybrid", "sparse"]
+    search_mode: Optional[Literal["dense", "hybrid"]] = None
 
     @model_validator(mode="after")
-    def validate_vector_search_mode(self):
-        if self.vector_type == "hybrid" and self.search_mode != "hybrid":
-            raise ValueError("search_mode must be 'hybrid' when vector_type is 'hybrid'")
+    def resolve_profile_and_validate_modes(self):
+        if self.profile:
+            spec = _DOMAIN_PROFILES[self.profile]
+            for field_name in ("model_type", "vector_type", "search_mode"):
+                value = getattr(self, field_name)
+                expected = spec[field_name]
+                if value is None:
+                    setattr(self, field_name, expected)
+                elif value != expected:
+                    raise ValueError(
+                        f"{field_name}={value!r} conflicts with profile "
+                        f"'{self.profile}' (expects {expected!r})"
+                    )
+            if self.embedding_model_key is None:
+                self.embedding_model_key = spec["embedding_model_key"]
+
+        missing = [
+            f for f in ("embedding_model_key", "model_type", "search_mode")
+            if getattr(self, f) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"missing required field(s) {missing}; set them explicitly "
+                f"or use a 'profile' shorthand"
+            )
+
+        # Sparse indexes only exist on hybrid collections, so the search mode
+        # must match the vector layout exactly.
+        if self.vector_type == "hybrid":
+            if self.search_mode != "hybrid":
+                raise ValueError("search_mode must be 'hybrid' when vector_type is 'hybrid'")
+        elif self.search_mode != "dense":
+            raise ValueError(
+                "search_mode must be 'dense' when vector_type is 'dense' or unset "
+                "(sparse/hybrid search requires vector_type: hybrid)"
+            )
         return self
 
 
