@@ -4,10 +4,34 @@ How a document becomes searchable chunks, and how an answer links back to the
 exact passage it came from. This is the strategy map — implementation details
 live in the docs linked at the bottom.
 
-```
-document → extract → chunk (+ metadata/provenance) → embed (dense + sparse)
-        → index (Qdrant) → hybrid search → answer → structured sources
-        → deep link → cited page/section/region
+```mermaid
+flowchart LR
+    subgraph Ingest["Ingestion"]
+        PDF["Simple PDFs"] -->|"POST /pdf"| EXT1["pymupdf4llm<br>markdown extract"]
+        DS["Datasheets / dense<br>technical PDFs"] -->|"POST /index-pdf-docling"| EXT2["Docling<br>layout + TableFormer<br>+ provenance"]
+        HTML["HTML / MediaWiki"] --> EXT3["HTML / MediaWiki<br>extractors<br>(heading-id anchors)"]
+    end
+
+    subgraph Index["Indexing"]
+        EXT1 --> CHUNK["Structure-aware<br>chunking"]
+        EXT2 --> CHUNK
+        EXT3 --> CHUNK
+        CHUNK --> META["Payload metadata:<br>regions / bbox_norm,<br>page_numbers, citation_label,<br>section anchors"]
+        META --> DENSE["Dense: BGE-base 768<br>(or hosted 1536)"]
+        META --> SPARSE["Sparse: SPLADE"]
+        DENSE --> QD[("Qdrant collections<br>named vectors")]
+        SPARSE --> QD
+        EXT2 -.->|"persisted PDF +<br>extraction artifact"| STORE[("docling_artifacts")]
+    end
+
+    subgraph Retrieve["Retrieval & citations"]
+        QD -->|"hybrid dense+sparse<br>RRF fusion"| ANS["Chat answer<br>+ structured sources"]
+        ANS --> LINKS{"Deep link by<br>source type"}
+        STORE -->|"GET /docling-document/{id}"| VIEW
+        LINKS -->|"file:// + regions"| VIEW["pdf-viewer.html<br>page render + yellow<br>bbox highlight"]
+        LINKS -->|"http(s) PDF"| PAGEL["url#page=N"]
+        LINKS -->|"HTML / wiki"| FRAG["url#id:~:text=<br>scroll-to-text"]
+    end
 ```
 
 ## 1. Ingestion paths (routing by document type)
