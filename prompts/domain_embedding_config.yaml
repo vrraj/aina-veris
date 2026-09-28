@@ -79,3 +79,12 @@ domains:
     model_type: local
     vector_type: hybrid
     search_mode: hybrid
+  semiconductor_datasheets_docling:
+    # Docling pipeline output (POST /index-pdf-docling). Same embedding profile
+    # as semiconductor_datasheets; the dedicated collection keeps the new
+    # path isolated from the legacy index.
+    collection_name: document_index_semiconductor_datasheets_docling_v1
+    embedding_model_key: local:dense_default
+    model_type: local
+    vector_type: hybrid
+    search_mode: hybrid
