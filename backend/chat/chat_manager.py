@@ -807,6 +807,7 @@ def handle_chat(payload: Dict[str, Any]) -> Dict[str, Any]:
         resp: Dict[str, Any] = {
             "answer": _answer_text,
             "response": _answer_text,  # legacy compatibility for frontend expecting 'response'
+            "sources": out.get("sources", []),
             "metrics": out.get("metrics", {"vectors_retrieved": 0}),
             "turn_metrics": out.get("turn_metrics", {}),
             "conversation_totals": out.get("conversation_totals", {}),

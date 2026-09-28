@@ -1314,7 +1314,12 @@
       }
 
       // Render clickable sources (page deep links for PDFs) when provided.
-      try { renderSourceList(bubble, data && data.sources); } catch (_) {}
+      // Stash on the bubble so a late SSE final frame can re-render them
+      // after overwriting textContent.
+      try {
+        bubble.__sourcesList = (data && Array.isArray(data.sources)) ? data.sources : [];
+        renderSourceList(bubble, bubble.__sourcesList);
+      } catch (_) {}
 
       // Render tools-used dim line, if provided
       if (data && Array.isArray(data.tools_used) && data.tools_used.length > 0) {
@@ -1874,7 +1879,13 @@ function setupStageStreaming(queryId, bubbleEl) {
             try {
               const finalHtml = payload.finalHtml || payload.final_html || payload.html || '';
               if (finalHtml) setAssistantBubbleHtml(bubble, finalHtml);
-              else if (finalContent) bubble.textContent = finalContent;
+              else if (finalContent) {
+                const stashed = bubble.__sourcesList;
+                bubble.textContent = (stashed && stashed.length)
+                  ? stripSourcesBlock(finalContent)
+                  : finalContent;
+                if (stashed && stashed.length) renderSourceList(bubble, stashed);
+              }
             } catch (e) {
               if (finalContent) bubble.textContent = finalContent;
             }
@@ -1898,7 +1909,11 @@ function setupStageStreaming(queryId, bubbleEl) {
 
         if (payload.final === true || payload.stage === 'Done') {
           if (bubble && typeof payload.finalContent === 'string' && payload.finalContent.length > 0) {
-            bubble.textContent = payload.finalContent;
+            const stashed = bubble.__sourcesList;
+            bubble.textContent = (stashed && stashed.length)
+              ? stripSourcesBlock(payload.finalContent)
+              : payload.finalContent;
+            if (stashed && stashed.length) renderSourceList(bubble, stashed);
           }
           closeAndForget();
           return;
