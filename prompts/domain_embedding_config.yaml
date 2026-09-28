@@ -20,6 +20,13 @@
 # embedding_model_key. You may still write the fields explicitly instead of a
 # profile, or override only `embedding_model_key` alongside a profile.
 #
+# Verbose equivalent (no profile):
+#   collection_name: ...
+#   model_type: local                # hosted | local
+#   embedding_model_key: local:dense_default
+#   vector_type: hybrid              # dense | hybrid | null (legacy only)
+#   search_mode: hybrid              # dense | hybrid — must match vector_type
+#
 # IMPORTANT — collection migrations:
 # Qdrant fixes dense-vector dimensions when a collection is first created.
 # Keep an embedding model and collection_name paired permanently, or create a
