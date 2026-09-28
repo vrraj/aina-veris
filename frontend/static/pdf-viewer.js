@@ -44,11 +44,11 @@ function setStatus(msg, isError) {
   wrapEl.style.display = 'none';
 }
 
-function drawHighlight(cssWidth, cssHeight) {
+function drawHighlight(cssWidth, cssHeight, showBox) {
   overlay.innerHTML = '';
   overlay.style.width = `${cssWidth}px`;
   overlay.style.height = `${cssHeight}px`;
-  if (!highlightBox) return;
+  if (!highlightBox || !showBox) return;
   const [x0, y0, x1, y1] = highlightBox;
   const box = document.createElement('div');
   box.className = 'region-box';
@@ -84,11 +84,11 @@ async function renderPage(num) {
 
   statusEl.style.display = 'none';
   wrapEl.style.display = 'block';
-  drawHighlight(viewport.width, viewport.height);
+  drawHighlight(viewport.width, viewport.height, num === initialPage);
   pageIndicator.textContent = `Page ${num} / ${pdfDoc.numPages}`;
   prevBtn.disabled = num <= 1;
   nextBtn.disabled = num >= pdfDoc.numPages;
-  if (highlightBox) overlay.scrollIntoView({ block: 'center' });
+  if (highlightBox && num === initialPage) overlay.scrollIntoView({ block: 'center' });
 }
 
 async function load() {
