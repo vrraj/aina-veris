@@ -119,7 +119,7 @@
         </aside>
 
         <!-- Right Main Content -->
-        <div class="flex-1 px-8 py-4">
+        <div class="flex-1 min-w-0 px-8 py-4">
             <div class="index-page-header">
                 <div>
                     <h1 class="index-page-title">Extract &amp; generate embeddings</h1>
@@ -399,33 +399,31 @@
 
             <!-- Debug Index Panel -->
             <div id="content-panel-debug-index" class="content-panel bg-white rounded-lg shadow-md p-6" role="tabpanel" style="display: none;">
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                    <div class="md:col-span-2">
+                <div class="flex flex-wrap items-end gap-4 mb-4">
+                    <div class="w-64">
                         <label class="block text-sm font-medium text-gray-700">Filter by URL (optional)</label>
                         <input id="debugIndexUrl" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="https://example.com/path" />
                     </div>
-                    <div>
+                    <div class="w-56">
                         <label for="debugIndexActiveDomain" class="block text-sm font-medium text-gray-700">Active Domain</label>
                         <select id="debugIndexActiveDomain" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="">(default)</option>
                         </select>
                     </div>
-                    <div>
+                    <div class="w-28">
                         <label class="block text-sm font-medium text-gray-700">Max rows</label>
                         <input id="debugIndexMaxRows" type="number" min="1" step="1" value="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        <p class="text-xs text-gray-500 mt-1">Controls how many array items are shown (display only).</p>
                     </div>
-                    <div class="flex items-end">
+                    <div>
                         <button id="debugIndexFetchBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Fetch</button>
                     </div>
+                    <p class="text-xs text-gray-500 self-center">Max rows controls how many array items are shown (display only).</p>
                 </div>
 
                 <div class="bg-gray-50 rounded p-4 mb-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <div>
-                            <h3 class="text-lg inline">Results</h3>
-                            <span id="debugIndexResultCount" class="ml-2 text-sm text-gray-500"></span>
-                        </div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <h3 class="text-lg inline">Results</h3>
+                        <span id="debugIndexResultCount" class="text-sm text-gray-500"></span>
                         <button id="debugIndexDownloadBtn" class="px-4 py-2 rounded-md" style="background-color: #f5f3ed;">Download JSON</button>
                     </div>
                     <div class="mb-2 text-sm text-gray-500">
