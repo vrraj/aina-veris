@@ -216,3 +216,19 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done (acceptance check passe
   setting wired into Docling, CPU-only PyTorch install overlay + make target.
 - 2026-09-27: T10 done — "Use Docling pipeline" checkbox wired into the Web
   UI Index PDF form; `embedding_cost` added to the docling response.
+- 2026-09-28: Deployment fixes — Docker image gains libxcb/GL system libs for
+  docling's OpenCV; `PDF_DOCLING_WARMUP_ON_STARTUP` pre-downloads models in a
+  background task; `HF_HOME` persisted into the LOCAL_MODELS_CACHE_PATH
+  volume. `semiconductor_datasheets_docling` search domain added.
+- 2026-09-28: Domain config simplified — `profile` shorthand
+  (legacy-dense | hosted-dense | local-dense | hosted-hybrid | local-hybrid)
+  expands to model_type/vector_type/search_mode + default model key;
+  validator rejects conflicting fields and vector/search-mode mismatches in
+  both directions; yaml + README updated.
+- 2026-09-28: Clickable chat citations — `handle_chat` now returns structured
+  `sources` (was dropped); plain-text Sources tail stripped when structured
+  sources exist; chat.js renders a clickable list (`#page=N` deep links for
+  HTTP PDFs); indexed PDFs persisted next to artifacts and served via
+  `GET /docling-document/{document_id}` so file:// uploads deep-link too;
+  collection-name double-suffix guard. Rule: docs indexed before persistence
+  must be re-indexed (no fallback paths kept).
