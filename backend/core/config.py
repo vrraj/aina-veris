@@ -524,6 +524,7 @@ class Settings(BaseSettings):
     # Writes go to a dedicated "<domain_collection>_docling_v1" collection so
     # the legacy /pdf path and its collections stay untouched.
     pdf_docling_enabled: bool = True  # Feature gate for the /index-pdf-docling route
+    pdf_docling_warmup_on_startup: bool = True  # Pre-download Docling models in the background after startup
     pdf_docling_artifact_dir: str = "docling_artifacts"  # Extraction artifact store (JSON, outside Qdrant)
     pdf_docling_chunk_size: int = 500  # Embedding token budget per chunk (target 300-600)
     pdf_docling_chunk_overlap: int = 50  # Minimal overlap for prose sentence splits

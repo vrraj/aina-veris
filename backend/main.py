@@ -41,7 +41,7 @@ from backend.chat.prompt_registry import clear_prompt_registry_cache
 from backend.tools import get_discovered_mcp_tools, refresh_tool_catalog
 from backend.retrieval.eval_schemas import RetrievalEvalRequest, RetrievalEvalResponse
 from backend.retrieval.eval_runner import run_retrieval_eval
-from backend.core.config import DomainEmbeddingConfigModel
+from backend.core.config import DomainEmbeddingConfigModel, settings
 from pydantic import BaseModel
 from backend.api.endpoints import model_keys as model_keys_endpoint
 from backend.api.domain_indexing import (
@@ -91,7 +91,22 @@ async def app_lifespan(app: FastAPI):
     async with mcp_lifespan(app):
         result = await asyncio.to_thread(refresh_tool_catalog)
         logger.info("[TOOLS] startup_catalog_warmup tool_count=%d", len(result["tools"]))
+        _start_docling_warmup()
         yield
+
+
+def _start_docling_warmup() -> None:
+    """Kick off Docling model download in the background, if enabled."""
+    if not getattr(settings, "pdf_docling_enabled", True):
+        return
+    if not getattr(settings, "pdf_docling_warmup_on_startup", True):
+        return
+    from backend.extractor.docling_pdf_extractor import prewarm_models
+
+    task = asyncio.create_task(asyncio.to_thread(prewarm_models))
+    task.add_done_callback(
+        lambda t: t.exception() and logger.error("Docling warm-up task failed: %s", t.exception())
+    )
 
 
 app = FastAPI(

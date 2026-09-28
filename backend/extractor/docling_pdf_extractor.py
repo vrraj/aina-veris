@@ -256,6 +256,33 @@ def _get_converter(
     return _CONVERTER_CACHE[key]
 
 
+def prewarm_models() -> bool:
+    """Build the configured converter, triggering Docling's model downloads.
+
+    Intended to run in a background task after app startup so the first
+    /index-pdf-docling request does not pay the download cost. Returns True
+    when the converter was built; False when docling is unavailable or the
+    warm-up failed (logged, non-fatal — the request path retries lazily).
+    """
+    if not HAS_DOCLING:
+        logger.info("Docling warm-up skipped: docling is not installed")
+        return False
+    try:
+        from backend.core.config import settings as app_settings
+
+        _get_converter(
+            bool(getattr(app_settings, "pdf_docling_do_ocr", False)),
+            str(getattr(app_settings, "pdf_docling_table_mode", "accurate")),
+            str(getattr(app_settings, "pdf_docling_accelerator_device", "auto")),
+            int(getattr(app_settings, "pdf_docling_num_threads", 4)),
+        )
+        logger.info("Docling warm-up complete: models ready")
+        return True
+    except Exception:
+        logger.exception("Docling warm-up failed; first request will retry")
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Box normalization
 # ---------------------------------------------------------------------------

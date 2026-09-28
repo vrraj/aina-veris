@@ -132,6 +132,7 @@ Settings (see `.env.example`):
 | Setting | Default | Purpose |
 |---|---|---|
 | `PDF_DOCLING_ENABLED` | `true` | Feature gate for the route. |
+| `PDF_DOCLING_WARMUP_ON_STARTUP` | `true` | Pre-download Docling models in a background task after startup. |
 | `PDF_DOCLING_ARTIFACT_DIR` | `docling_artifacts` | Extraction artifact store. |
 | `PDF_DOCLING_CHUNK_SIZE` | `500` | Embedding token budget per chunk. |
 | `PDF_DOCLING_CHUNK_OVERLAP` | `50` | Prose overlap tokens. |
@@ -188,6 +189,11 @@ and set `PDF_DOCLING_ACCELERATOR_DEVICE=auto` or `cuda`.
 - **Dependencies.** Docling (pinned in `requirements.txt`) pulls the
   torch stack; the dependency lock reflects this. First conversion on a
   machine downloads Docling model artifacts into the HuggingFace cache.
+  When `PDF_DOCLING_WARMUP_ON_STARTUP` is true (default), a background
+  task builds the converter after app startup so the first request is
+  fast; in Docker, `HF_HOME=/root/models/huggingface` lands those
+  downloads inside the persisted `LOCAL_MODELS_CACHE_PATH` volume so
+  container recreation does not re-download them.
 - **Host access to Qdrant.** When running the app on the host (not in
   Docker), set `QDRANT_PORT=6335` per `docker-compose.yml`.
 - **CI.** Unit tests run without Docling model inference (programmatic
