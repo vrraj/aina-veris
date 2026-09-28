@@ -1,82 +1,65 @@
-# ==============================================================================
-# DOMAIN EMBEDDING CONFIGURATION
-# ==============================================================================
-# Each domain maps a knowledge base to its Qdrant collection and retrieval
-# profile. The active domain is used unless a request explicitly selects
-# another configured domain.
-#
-# Profiles (recommended — set `profile:` and `collection_name:`):
-#
-#   legacy-dense   Hosted dense vector, legacy unnamed-vector format. For
-#                  collections indexed before named vectors existed.
-#   hosted-dense   Hosted dense vector (named "dense"). Needs OPENAI/GEMINI key.
-#   local-dense    Local BGE-base dense (768-dim), no sparse index. Offline,
-#                  smallest footprint.
-#   hosted-hybrid  Hosted dense + local SPLADE sparse, RRF-fused.
-#   local-hybrid   Local BGE dense + local SPLADE sparse, RRF-fused. Best
-#                  default for technical corpora (part numbers, exact terms).
-#
-# A profile fills model_type / vector_type / search_mode and a default
-# embedding_model_key. You may still write the fields explicitly instead of a
-# profile, or override only `embedding_model_key` alongside a profile.
-#
-# Verbose equivalent (no profile):
-#   collection_name: ...
-#   model_type: local                # hosted | local
-#   embedding_model_key: local:dense_default
-#   vector_type: hybrid              # dense | hybrid | null (legacy only)
-#   search_mode: hybrid              # dense | hybrid — must match vector_type
-#
-# IMPORTANT — collection migrations:
-# Qdrant fixes dense-vector dimensions when a collection is first created.
-# Keep an embedding model and collection_name paired permanently, or create a
-# new collection/recreate the old one and re-index all documents. For example,
-# openai:embed_small produces 1536-dimensional vectors; local:dense_default
-# (BAAI/bge-base-en-v1.5) produces 768-dimensional vectors. Changing between
-# them while keeping the same collection causes a vector-dimension error.
-#
-# Model cache:
-# Local FastEmbed ONNX models (dense, and SPLADE for hybrid profiles) are held
-# once per Python process and evicted only after MODEL_CACHE_IDLE_TTL_SECONDS
-# of inactivity (default: 300). Their model files persist at
-# ${LOCAL_MODELS_CACHE_PATH}/fastembed_cache.
-# ==============================================================================
-
-# Default domain selected at application startup. Set ACTIVE_DOMAIN in .env to
-# override this without changing the tracked configuration file.
 active_domain: semiconductor_datasheets
 domains:
-  # General-purpose hosted dense retrieval on the legacy unnamed-vector
-  # collection.
   default:
     collection_name: document_index
     profile: legacy-dense
+    embedding_model_key: openai:embed_small
+    model_type: hosted
+    vector_type: null
+    search_mode: dense
   mountains:
     collection_name: document_index
     profile: legacy-dense
+    embedding_model_key: openai:embed_small
+    model_type: hosted
+    vector_type: null
+    search_mode: dense
   oceans:
     collection_name: document_index_gemini
     profile: legacy-dense
     embedding_model_key: gemini:native-embed
+    model_type: hosted
+    vector_type: null
+    search_mode: dense
   finance:
-    # Local hybrid: 768-dim BGE dense + SPLADE sparse, fused at query time.
     collection_name: document_index_finance
     profile: local-hybrid
+    embedding_model_key: local:dense_default
+    model_type: local
+    vector_type: hybrid
+    search_mode: hybrid
   backpacking:
     collection_name: document_index_backpack
     profile: local-hybrid
+    embedding_model_key: local:dense_default
+    model_type: local
+    vector_type: hybrid
+    search_mode: hybrid
   semiconductor_memory:
-    # Separate hosted dense collection for this domain.
     collection_name: document_index_semiconductor_memory
     profile: legacy-dense
+    embedding_model_key: openai:embed_small
+    model_type: hosted
+    vector_type: null
+    search_mode: dense
   semiconductor_datasheets:
-    # Dedicated collection for datasheets. Do not reuse a collection that was
-    # created for a 1536-dimension hosted embedding model.
     collection_name: document_index_semiconductor_datasheets
     profile: local-hybrid
+    embedding_model_key: local:dense_default
+    model_type: local
+    vector_type: hybrid
+    search_mode: hybrid
   semiconductor_datasheets_docling:
-    # Docling pipeline output (POST /index-pdf-docling). Same retrieval profile
-    # as semiconductor_datasheets; the dedicated collection keeps the new
-    # path isolated from the legacy index.
     collection_name: document_index_semiconductor_datasheets_docling_v1
     profile: local-hybrid
+    embedding_model_key: local:dense_default
+    model_type: local
+    vector_type: hybrid
+    search_mode: hybrid
+  semiconductor_datasheets_docling_mchp:
+    collection_name: semi_datasheets_docling_mchp_docling_v1
+    profile: local-hybrid
+    embedding_model_key: local:dense_default
+    model_type: local
+    vector_type: hybrid
+    search_mode: hybrid
