@@ -39,8 +39,14 @@ from pydantic import BaseModel, Field
 from backend.chat.chat_manager import ChatManager
 from backend.chat.prompt_registry import clear_prompt_registry_cache
 from backend.tools import get_discovered_mcp_tools, refresh_tool_catalog
-from backend.retrieval.eval_schemas import RetrievalEvalRequest, RetrievalEvalResponse
+from backend.retrieval.eval_schemas import (
+    EvalDatasetPayload,
+    RetrievalEvalRequest,
+    RetrievalEvalResponse,
+    RetrievalEvalRunSetRequest,
+)
 from backend.retrieval.eval_runner import run_retrieval_eval
+from backend.retrieval import eval_datasets as eval_datasets_mod
 from backend.core.config import DomainEmbeddingConfigModel, settings
 from pydantic import BaseModel
 from backend.api.endpoints import model_keys as model_keys_endpoint
@@ -1285,6 +1291,100 @@ async def run_retrieval_evals(eval_request: RetrievalEvalRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Labeled dataset evaluation (evals/ YAML store + batch run-set) ---
+
+
+@app.get(
+    "/api/retrieval-evals/datasets",
+    tags=["3. Search & Chat"],
+    summary="List retrieval eval datasets",
+)
+async def list_eval_datasets():
+    return {"datasets": eval_datasets_mod.list_datasets()}
+
+
+@app.get(
+    "/api/retrieval-evals/datasets/{name}",
+    tags=["3. Search & Chat"],
+    summary="Read a retrieval eval dataset",
+)
+async def get_eval_dataset(name: str):
+    try:
+        return eval_datasets_mod.load_dataset(name)
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.put(
+    "/api/retrieval-evals/datasets/{name}",
+    tags=["3. Search & Chat"],
+    summary="Create or update a retrieval eval dataset",
+)
+async def put_eval_dataset(name: str, payload: EvalDatasetPayload, request: Request):
+    enforce_origin_host(request)
+    try:
+        return eval_datasets_mod.save_dataset(name, payload.model_dump())
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete(
+    "/api/retrieval-evals/datasets/{name}",
+    tags=["3. Search & Chat"],
+    summary="Delete a retrieval eval dataset",
+)
+async def delete_eval_dataset(name: str, request: Request):
+    enforce_origin_host(request)
+    try:
+        return eval_datasets_mod.delete_dataset(name)
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post(
+    "/api/retrieval-evals/run-set",
+    tags=["3. Search & Chat"],
+    summary="Run a labeled eval dataset against one or more domains",
+)
+async def run_eval_set_endpoint(run_request: RetrievalEvalRunSetRequest):
+    try:
+        dataset = eval_datasets_mod.load_dataset(run_request.dataset)
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    retrieval_knobs = {
+        "split_compound_queries": run_request.split_compound_queries,
+        "max_compound_queries": run_request.max_compound_queries,
+        "search_mode": run_request.search_mode,
+        "top_k": run_request.top_k,
+        "score_threshold": run_request.score_threshold,
+        "query_filter": run_request.query_filter,
+        "with_payload": True,
+        "exact": run_request.exact,
+        "use_colbert": run_request.use_colbert,
+        "colbert_top_n": run_request.colbert_top_n,
+        "enable_cross_encoder_rerank": run_request.enable_cross_encoder_rerank,
+        "cross_encoder_top_n": run_request.cross_encoder_top_n,
+        "ensure_subquery_coverage": run_request.ensure_subquery_coverage,
+        "min_results_per_subquery": run_request.min_results_per_subquery,
+        "coverage_max_reserved": run_request.coverage_max_reserved,
+    }
+    try:
+        result = await asyncio.to_thread(
+            eval_datasets_mod.run_eval_set,
+            dataset,
+            domains=run_request.domains,
+            retrieval_knobs=retrieval_knobs,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    result["payload_echo"] = run_request.model_dump()
+    return result
+
 
 @app.post("/chat", tags=["3. Search & Chat"], summary="5. Chat (stateless)")
 async def chat_with_content(chat_request: ChatRequest, request: Request):
