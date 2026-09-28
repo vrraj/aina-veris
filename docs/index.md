@@ -291,6 +291,7 @@ configuration into the research runtime.
 
 - Add a domain or ingest source material: [Configuration and ingestion](configuration.md)
 - Ingest technical PDFs (datasheets) with the Docling pipeline: [Docling PDF pipeline](pdf-docling-pipeline.md)
+- Indexing and citation strategy overview: [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md)
 - Publish a domain as an agent: [A2A research agents](a2a.md)
 - Expose or consume MCP tools: [MCP integration](mcp_specs.md) · [Tool registry](tool_registry.md)
 - Call REST, follow SSE stages, or embed chat: [API surfaces](api-reference.md) · [SSE](server-sent-events.md) · [Embeddable chat](embedded-chat.md)
