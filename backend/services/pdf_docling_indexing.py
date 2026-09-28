@@ -82,10 +82,16 @@ _PAYLOAD_FIELDS = frozenset(
 
 
 def resolve_docling_collection_name(active_domain: Optional[str]) -> str:
-    """Dedicated versioned collection for the Docling pipeline."""
+    """Dedicated versioned collection for the Docling pipeline.
+
+    If the domain's collection_name already carries the docling suffix (i.e.
+    the request was routed via a domain that points directly at the docling
+    collection), use it as-is rather than double-suffixing.
+    """
     domain_cfg = resolve_domain_config(active_domain)
     suffix = str(getattr(settings, "pdf_docling_collection_suffix", "_docling_v1"))
-    return f"{domain_cfg['collection_name']}{suffix}"
+    base = str(domain_cfg["collection_name"])
+    return base if base.endswith(suffix) else f"{base}{suffix}"
 
 
 def build_docling_qdrant(active_domain: Optional[str]) -> QdrantDB:

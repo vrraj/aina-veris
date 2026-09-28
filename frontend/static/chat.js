@@ -858,15 +858,20 @@
   }
 
   // Build a deep link for a source. PDFs get "#page=N" so the browser's
-  // built-in viewer opens at the cited page. Returns null for schemes that
-  // browsers cannot navigate to (e.g. file:// uploads).
+  // built-in viewer opens at the cited page. Uploaded (file://) docling
+  // documents are served back via /docling-document/{document_id}.
+  // Returns null only when nothing navigable exists.
   function buildSourceHref(url, pl) {
     const raw = String(url || '').trim();
-    if (!/^https?:/i.test(raw)) return null;
     const page = (
       (Array.isArray(pl.page_numbers) && pl.page_numbers[0]) ||
       (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number)
     );
+    if (/^file:/i.test(raw) && pl.document_id) {
+      const base = `/docling-document/${encodeURIComponent(pl.document_id)}`;
+      return page ? `${base}#page=${page}` : base;
+    }
+    if (!/^https?:/i.test(raw)) return null;
     const isPdf = /\.pdf($|[?#])/i.test(raw) || pl.document_type === 'pdf';
     const base = raw.split('#')[0];
     return page && isPdf ? `${base}#page=${page}` : base;

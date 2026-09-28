@@ -23,6 +23,7 @@ from backend.extractor.docling_pdf_extractor import (
     compute_document_id,
     extract_pdf_document,
     save_artifact,
+    save_source_pdf,
 )
 from backend.services.pdf_docling_indexing import (
     count_docling_points_for_document,
@@ -145,6 +146,18 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
         extraction, getattr(settings, "pdf_docling_artifact_dir", None)
     )
     logger.info("Docling artifact saved: %s (%s)", artifact_uri, artifact_path)
+
+    try:
+        pdf_path = save_source_pdf(
+            pdf_bytes,
+            extraction.document_id,
+            getattr(settings, "pdf_docling_artifact_dir", None),
+        )
+        logger.info("Docling source PDF saved: %s", pdf_path)
+    except Exception as exc:
+        # Source persistence is best-effort: citations still render with
+        # page metadata; file:// links just won't be navigable.
+        logger.warning("Could not persist source PDF for %s: %s", source, exc)
 
     result = index_docling_chunks(
         plan.chunks,

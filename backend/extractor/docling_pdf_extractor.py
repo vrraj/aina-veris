@@ -720,6 +720,43 @@ def save_artifact(
     return str(path), uri
 
 
+def save_source_pdf(
+    pdf_bytes: bytes,
+    document_id: str,
+    artifact_dir: Optional[str] = None,
+) -> str:
+    """Persist the raw PDF bytes next to the extraction artifact so
+    file:// (uploaded) sources can be served back to the browser for
+    clickable citations. Returns the file path. Atomic temp+rename write.
+    """
+    out_dir = _artifact_dir(artifact_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    digest = str(document_id).split(":", 1)[-1]
+    path = out_dir / f"{digest}.pdf"
+
+    fd, tmp_name = tempfile.mkstemp(dir=str(out_dir), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(pdf_bytes)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+    return str(path)
+
+
+def source_pdf_path(document_id: str, artifact_dir: Optional[str] = None) -> Optional[str]:
+    """Return the stored source-PDF path for a document id, or None."""
+    digest = str(document_id or "").split(":", 1)[-1]
+    if not digest or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+        return None
+    path = _artifact_dir(artifact_dir) / f"{digest}.pdf"
+    return str(path) if path.exists() else None
+
+
 def load_artifact(path: str) -> Dict[str, Any]:
     """Load an artifact JSON from disk and verify its checksum."""
     with open(path, "r", encoding="utf-8") as fh:

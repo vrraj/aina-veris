@@ -48,6 +48,7 @@ from backend.chat.pipeline.summary import (
     _touch_namespace,
 )
 from backend.chat.pipeline.stage_specs import resolve_stage_specs
+from backend.chat.pipeline.text_utils import strip_trailing_sources_block
 from backend.chat.pipeline.stages.context_assembly import run_context_assembly_stage
 from backend.chat.pipeline.stages.final_response import run_final_response_stage
 from backend.chat.pipeline.stages.history import clear_chunk_manager_for_namespace, run_history_stage
@@ -208,6 +209,10 @@ class ChatManager:
 
             out = run_pipeline(deps=deps, req=req)
             answer_text = out.get("answer", "") or ""
+            # The structured sources array is the clickable source of truth;
+            # drop the appended plain-text tail to avoid a duplicate block.
+            if out.get("sources"):
+                answer_text = strip_trailing_sources_block(answer_text)
             
             # Debug: Log what we got from orchestrator
             logger.info("DEBUG: orchestrator out keys: %s", list(out.keys()) if isinstance(out, dict) else "not a dict")
@@ -779,6 +784,10 @@ def handle_chat(payload: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("[PIPELINE] handle_chat returning orchestrator output: %s", out.get("answer", ""))
 
         _answer_text = out.get("answer", "")
+        # The structured sources array is the clickable source of truth;
+        # drop the appended plain-text tail to avoid a duplicate block.
+        if out.get("sources"):
+            _answer_text = strip_trailing_sources_block(_answer_text)
         try:
             logger.info("[PIPELINE] raw_markdown_answer (req_id=%s):\n%s", req_id, _answer_text)
         except Exception:

@@ -6,10 +6,12 @@ backend/services/pdf_docling_service.py.
 """
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from backend.api.security import enforce_origin_host
 from backend.core.config import settings
 from backend.core.schemas import PDFDoclingInput
+from backend.extractor.docling_pdf_extractor import source_pdf_path
 from backend.services.pdf_docling_service import (
     DoclingPipelineError,
     index_pdf_docling as run_docling_indexing,
@@ -44,3 +46,21 @@ async def index_pdf_docling(pdf_input: PDFDoclingInput, request: Request):
         raise HTTPException(status_code=422, detail=message)
     except Exception as exc:  # unexpected — surface visibly, never fall back
         raise HTTPException(status_code=500, detail=f"Docling pipeline error: {exc}")
+
+
+@router.get(
+    "/docling-document/{document_id}",
+    tags=["3. Search & Chat"],
+    summary="Serve the stored source PDF for a docling-indexed document",
+)
+async def get_docling_document(document_id: str, request: Request):
+    """Return the persisted source PDF so file:// (uploaded) citations can
+    deep-link to the document. Browsers open it in the built-in PDF viewer;
+    the frontend appends #page=N to land on the cited page."""
+    enforce_origin_host(request)
+    path = source_pdf_path(
+        document_id, getattr(settings, "pdf_docling_artifact_dir", None)
+    )
+    if not path:
+        raise HTTPException(status_code=404, detail="Source PDF not found for this document")
+    return FileResponse(path, media_type="application/pdf")
