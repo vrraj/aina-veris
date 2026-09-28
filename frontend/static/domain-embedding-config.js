@@ -51,7 +51,7 @@ async function loadConfig() {
   const domainList = Array.isArray(configData.domains) ? configData.domains : [];
   const domains = domainList.join(', ');
   populateActiveDomainSelector(domainList, configData.active_domain);
-  els.activeDomainMeta.textContent = `Active domain: ${configData.active_domain || '(not set)'}${domains ? ` | Domains: ${domains}` : ''}`;
+  els.activeDomainMeta.textContent = `Server default: ${configData.active_domain || '(not set)'} — used when a request specifies no domain; the per-browser picker on other pages overrides it | Domains: ${domains}`;
   setStatus('Domain embedding config loaded.', 'success');
 }
 
