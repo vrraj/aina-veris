@@ -652,6 +652,40 @@ input[type="number"]:focus { outline: none; border-color: var(--accent); }
   font-size: 12px;
 }
 
+/* Clickable sources list under assistant messages */
+.chat-sources {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, #e5e5e5);
+  font-size: 12px;
+}
+.chat-sources-title {
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.chat-sources ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.chat-source {
+  padding: 2px 0;
+}
+.chat-source-link {
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+a.chat-source-link:hover {
+  text-decoration: underline;
+}
+span.chat-source-link {
+  color: var(--muted);
+}
+.chat-source-meta {
+  color: var(--muted);
+}
+
 /* Action Buttons - AxioLex UI Style Guide */
 .action-button {
   padding: 6px 12px;
