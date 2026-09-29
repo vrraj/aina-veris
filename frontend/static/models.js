@@ -46,12 +46,12 @@ function render(data) {
     const rows = c.models.map((m) => `
       <tr class="border-t">
         <td class="py-2 pr-4 mono model-key text-sm">${m.key}</td>
-        <td class="py-2 pr-4 text-sm whitespace-nowrap">idle ${fmtIdle(m.idle_secs)}</td>
-        <td class="py-2 pr-2">
+        <td class="py-2 pr-4 text-sm whitespace-nowrap text-right">idle ${fmtIdle(m.idle_secs)}</td>
+        <td class="py-2 pr-2 text-right">
           <button class="action-btn" data-act="reload" data-cache="${c.name}" data-key="${m.key}">Reload</button>
         </td>
-        <td class="py-2">
-          <button class="action-btn index-nav-item-danger" data-act="eject" data-cache="${c.name}" data-key="${m.key}">Eject</button>
+        <td class="py-2 text-right">
+          <button class="action-btn action-btn-danger" data-act="eject" data-cache="${c.name}" data-key="${m.key}">Eject</button>
         </td>
       </tr>`).join('');
     card.innerHTML = `
@@ -63,7 +63,7 @@ function render(data) {
         <div class="text-sm text-gray-500">TTL ${fmtIdle(c.idle_timeout_s)} · ${c.models.length} loaded</div>
       </div>
       ${c.models.length
-        ? `<table class="w-full">${rows}</table>`
+        ? `<table class="w-full model-table"><colgroup><col><col class="col-idle"><col class="col-act"><col class="col-act"></colgroup><tbody>${rows}</tbody></table>`
         : '<div class="text-sm text-gray-400 py-2">empty — loads lazily on next use</div>'}
       ${c.models.length
         ? `<button class="action-btn mt-2" data-act="eject-cache" data-cache="${c.name}">Eject all in ${c.name}</button>`
@@ -100,7 +100,7 @@ function render(data) {
             <td class="py-2 mono model-key text-xs pr-4">${m.cache_dir || '—'}</td>
             <td class="py-2">
               ${m.in_memory
-                ? `<button class="action-btn index-nav-item-danger" data-act="eject" data-cache="${m.loaded_in}" data-key="${m.loaded_key}">Eject</button>`
+                ? `<button class="action-btn action-btn-danger" data-act="eject" data-cache="${m.loaded_in}" data-key="${m.loaded_key}">Eject</button>`
                 : '<span class="text-xs text-gray-300">—</span>'}
             </td>
           </tr>`).join('')}

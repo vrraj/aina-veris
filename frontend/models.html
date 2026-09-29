@@ -13,7 +13,15 @@
     .badge-ok { background: #dcfce7; color: #166534; }
     .badge-off { background: #f3f4f6; color: #6b7280; }
     .model-key { word-break: break-all; }
-    .action-btn { padding: 4px 10px; font-size: 0.8rem; border-radius: 6px; }
+    .action-btn { background: #fff; border: 1px solid #d8d5cf; border-radius: 6px; color: #171717; padding: 4px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .action-btn:hover { background: #f5f3ed; }
+    .action-btn:disabled { opacity: 0.5; cursor: default; }
+    .action-btn-danger { color: #9a2a23; }
+    .model-table { table-layout: fixed; }
+    .model-table .col-idle { width: 7rem; }
+    .model-table .col-act { width: 5.5rem; }
+    .page-btn { background: #fff; border: 1px solid #d8d5cf; border-radius: 0.55rem; color: #171717; font-weight: 600; }
+    .page-btn:hover { background: #f5f3ed; }
   </style>
 </head>
 <body class="min-h-screen">
@@ -31,8 +39,8 @@
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-3xl font-semibold">Manage Models</h1>
       <div class="flex items-center gap-2">
-        <button id="refreshBtn" class="px-4 py-2 rounded-md" title="Refresh cache status">Refresh</button>
-        <button id="ejectAllBtn" class="px-4 py-2 rounded-md index-nav-item-danger" title="Evict every cached model from memory">Eject all</button>
+        <button id="refreshBtn" class="page-btn px-4 py-2" title="Refresh cache status">Refresh</button>
+        <button id="ejectAllBtn" class="page-btn px-4 py-2 action-btn-danger" title="Evict every cached model from memory">Eject all</button>
       </div>
     </div>
 
