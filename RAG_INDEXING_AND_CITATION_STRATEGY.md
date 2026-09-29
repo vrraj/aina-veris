@@ -342,6 +342,10 @@ the VLM only captions `picture` items. Notes:
 - Pictures under **5% of the page area** are skipped (Docling's
   `picture_area_threshold`), which filters logos/icons but also small
   figures.
+- `PDF_DOCLING_IMAGES_SCALE=2.0` is recommended for micro-detail
+  datasheets: measured on SiT1534 land-pattern/package figures, 288-DPI
+  crops surfaced tolerance callouts (`0.55+0.05`, `POD-35 Rev A`) that
+  144-DPI crops missed entirely. Negligible extra cost on `mps`.
 - Generated text lands in the picture's `verbatim_text` and is chunked as a
   `caption` block carrying the figure's `item_refs`/`regions`, so citations
   still deep-link to the exact figure box.
