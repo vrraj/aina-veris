@@ -183,6 +183,18 @@ class PDFDoclingInput(BaseModel):
         description="Section heading paths to skip (case-insensitive). Default: none."
     )
 
+class ModelCacheActionInput(BaseModel):
+    """Request model for model-cache admin actions (/models/cache/*)."""
+    cache: str = Field(
+        ...,
+        description="Cache name from GET /models/cache (e.g. 'embeddings-dense')",
+    )
+    key: Optional[str] = Field(
+        None,
+        description="Model key within the cache; omit on eject to clear the whole cache",
+    )
+
+
 # Payload update request schema
 class PayloadUpdateRequest(BaseModel):
     url: str

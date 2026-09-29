@@ -154,6 +154,11 @@ from backend.api.endpoints import pdf_docling as pdf_docling_endpoint  # noqa: E
 
 app.include_router(pdf_docling_endpoint.router)
 
+# Model cache admin (inspect / eject / reload in-memory models)
+from backend.api.endpoints import model_cache_admin as model_cache_admin_endpoint  # noqa: E402
+
+app.include_router(model_cache_admin_endpoint.router)
+
 # Configure static file serving
 # This allows the frontend to be served from the same server as the API
 # Static files will be served from the frontend directory
@@ -424,6 +429,15 @@ async def process_batch_docs_page():
     """Serve the process-batch-docs HTML page"""
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
     return FileResponse(os.path.join(frontend_dir, "process-batch-docs.html"))
+
+@app.get(
+    "/models.html",
+    include_in_schema=False  # UI page; not part of API docs
+)
+async def models_page():
+    """Serve the model-cache management page."""
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+    return FileResponse(os.path.join(frontend_dir, "models.html"))
 
 # Chat page route (HTML)
 @app.get(
