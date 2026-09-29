@@ -45,12 +45,12 @@ class TTLModelCache:
         self._cache[key] = (model, time.monotonic())
         return model
 
-    def _sweep(self) -> None:
+    def sweep(self) -> None:
         """Evict models idle for longer than ``idle_timeout``."""
         if self.idle_timeout <= 0:
             return
         now = time.monotonic()
-        evicted: list[str] = []
+        evicted: list = []
         for key, (_, last_access) in list(self._cache.items()):
             if now - last_access > self.idle_timeout:
                 evicted.append(key)
@@ -63,6 +63,9 @@ class TTLModelCache:
                 evicted,
             )
             gc.collect()
+
+    # Backwards-compatible alias for existing callers.
+    _sweep = sweep
 
     def clear(self) -> None:
         """Drop all cached models immediately."""

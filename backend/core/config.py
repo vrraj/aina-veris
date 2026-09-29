@@ -560,6 +560,14 @@ class Settings(BaseSettings):
     # re-loaded on next access. Set to 0 to disable eviction.
     model_cache_idle_ttl_seconds: int = 300
 
+    # Idle eviction TTL for ingestion-only models (Docling converter:
+    # layout, TableFormer, OCR, picture-description VLM) in seconds.
+    # These models are never used at query time, so they can be evicted
+    # more aggressively than embedding models, but rebuilding the
+    # converter is expensive (model loads, ~10-60 s). Longer than the
+    # embedding TTL for that reason. Set to 0 to keep them resident.
+    ingestion_model_cache_idle_ttl_seconds: int = 900
+
     # --- UI display toggles ---
     # Whether to append the Sources: block + structured sources for the main chat UI.
     display_sources_for_chat: bool = True

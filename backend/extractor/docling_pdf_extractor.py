@@ -19,6 +19,8 @@ import logging
 import os
 import re
 import tempfile
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -206,9 +208,60 @@ class DoclingExtraction:
 # Converter construction
 # ---------------------------------------------------------------------------
 
-_CONVERTER_CACHE: Dict[Tuple[bool, str, str, int], "DocumentConverter"] = {}
+_CONVERTER_CACHE_KEY = Tuple[bool, str, str, int, bool, str, float]
+_CONVERTER_CACHE: "TTLModelCache | None" = None
+_CONVERTER_CACHE_LOCK = threading.Lock()
+_SWEEPER_STARTED = False
+_SWEEP_INTERVAL_SECONDS = 60
 
 _VALID_ACCELERATOR_DEVICES = {"auto", "cpu", "mps", "cuda", "xpu"}
+
+
+def _converter_idle_timeout() -> int:
+    """Resolve the ingestion-model idle TTL from settings (lazy import)."""
+    try:
+        from backend.core.config import settings
+
+        return int(
+            getattr(settings, "ingestion_model_cache_idle_ttl_seconds", 900)
+        )
+    except Exception:
+        return 900
+
+
+def _get_converter_cache() -> "TTLModelCache":
+    """Return the process-wide converter cache, starting its sweeper once.
+
+    The Docling stack (layout, TableFormer, OCR, picture-description VLM)
+    is ingestion-only, so it can be evicted aggressively when idle. Unlike
+    the embedding caches, converters are rarely re-requested, so a
+    background thread sweeps the cache instead of relying on access-time
+    sweeps to actually release memory.
+    """
+    global _CONVERTER_CACHE, _SWEEPER_STARTED
+    with _CONVERTER_CACHE_LOCK:
+        if _CONVERTER_CACHE is None:
+            from backend.retrieval.model_cache import TTLModelCache
+
+            _CONVERTER_CACHE = TTLModelCache(
+                idle_timeout=_converter_idle_timeout()
+            )
+        if not _SWEEPER_STARTED:
+            _SWEEPER_STARTED = True
+            threading.Thread(
+                target=_sweep_converter_cache_forever,
+                name="docling-converter-cache-sweeper",
+                daemon=True,
+            ).start()
+        return _CONVERTER_CACHE
+
+
+def _sweep_converter_cache_forever() -> None:
+    while True:
+        time.sleep(_SWEEP_INTERVAL_SECONDS)
+        cache = _CONVERTER_CACHE
+        if cache is not None:
+            cache.sweep()
 
 
 def _normalize_device(device: Any) -> str:
@@ -294,9 +347,8 @@ def _get_converter(
         str(picture_description_model or "smolvlm"),
         float(images_scale),
     )
-    if key not in _CONVERTER_CACHE:
-        _CONVERTER_CACHE[key] = _build_converter(*key)
-    return _CONVERTER_CACHE[key]
+    cache = _get_converter_cache()
+    return cache.get(key, lambda: _build_converter(*key))
 
 
 def prewarm_models() -> bool:

@@ -356,3 +356,71 @@ def test_picture_description_text_from_meta():
         annotations=[],
     )
     assert _picture_description_text(item) == "Timing diagram of the output driver"
+
+
+# ---------------------------------------------------------------------------
+# Converter cache idle-TTL eviction
+# ---------------------------------------------------------------------------
+
+
+def test_converter_cache_evicts_after_idle_ttl(monkeypatch):
+    import backend.extractor.docling_pdf_extractor as mod
+    from backend.retrieval.model_cache import TTLModelCache
+
+    class FakeConverter:
+        pass
+
+    builds = []
+
+    def fake_build(*args):
+        builds.append(args)
+        return FakeConverter()
+
+    monkeypatch.setattr(mod, "_build_converter", fake_build)
+    cache = TTLModelCache(idle_timeout=1)
+    monkeypatch.setattr(mod, "_CONVERTER_CACHE", cache)
+
+    first = mod._get_converter(False, "fast", "cpu", 4)
+    again = mod._get_converter(False, "fast", "cpu", 4)
+    assert first is again
+    assert len(builds) == 1
+
+    # Age the entry past the TTL, then sweep like the background thread does.
+    key = next(iter(cache._cache))
+    model, _ = cache._cache[key]
+    cache._cache[key] = (model, -1.0)
+    cache.sweep()
+    assert cache._cache == {}
+
+    rebuilt = mod._get_converter(False, "fast", "cpu", 4)
+    assert rebuilt is not first
+    assert len(builds) == 2
+
+
+def test_converter_cache_zero_ttl_disables_eviction(monkeypatch):
+    import backend.extractor.docling_pdf_extractor as mod
+    from backend.retrieval.model_cache import TTLModelCache
+
+    class FakeConverter:
+        pass
+
+    monkeypatch.setattr(mod, "_build_converter", lambda *a: FakeConverter())
+    cache = TTLModelCache(idle_timeout=0)
+    monkeypatch.setattr(mod, "_CONVERTER_CACHE", cache)
+
+    first = mod._get_converter(False, "fast", "cpu", 4)
+    key = next(iter(cache._cache))
+    model, _ = cache._cache[key]
+    cache._cache[key] = (model, -1.0)
+    cache.sweep()
+    assert mod._get_converter(False, "fast", "cpu", 4) is first
+
+
+def test_converter_idle_ttl_reads_settings(monkeypatch):
+    from backend.core import config
+    import backend.extractor.docling_pdf_extractor as mod
+
+    monkeypatch.setattr(
+        config.settings, "ingestion_model_cache_idle_ttl_seconds", 42
+    )
+    assert mod._converter_idle_timeout() == 42
