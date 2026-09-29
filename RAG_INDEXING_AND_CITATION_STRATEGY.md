@@ -95,6 +95,35 @@ Practical pattern: keep the Docker stack CPU for serving/search, run
 figure-heavy indexing batches from a native `mps` process — both write to
 the same Qdrant.
 
+## Domain shards (multi-collection domains)
+
+A domain is the **knowledge boundary**; its collections are **pipeline
+shards**. A domain declares extra shards and every read/write path
+resolves them through one shared service (`backend/services/domain_shards.py`):
+
+```yaml
+semiconductor_datasheets:
+  collection_name: document_index_semi_ds          # primary shard
+  collections:                                     # extra shards, searched together
+    - name: document_index_semi_ds_docling_v1
+      pipeline: docling
+```
+
+Rules:
+
+- **Fan-out read**: search queries every existing shard with the mode its
+  vector layout supports (top_k per shard) and merges candidates with RRF.
+  All search paths use it — `/search`, chat (new and legacy retrieval),
+  and the eval harness. Single-shard domains take the unchanged path.
+- **Exclusive write**: a document (matched by its canonical source string)
+  lives in only one shard. Indexing a document found in another shard
+  refuses without `force_delete`; with it, the new version is indexed and
+  the other shard's points are retired — switching pipelines migrates.
+- **Lazy creation**: declared shards are created on first index; search
+  skips shards that don't exist yet.
+- **Admin ops** (delete by URL/base-url, document listings) span the shard
+  set and report per-collection counts.
+
 ## 1. Ingestion paths (routing by document type)
 
 | Document type | Endpoint | Extractor | Why |

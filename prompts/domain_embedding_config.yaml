@@ -44,6 +44,12 @@ domains:
     search_mode: dense
   semiconductor_datasheets:
     collection_name: document_index_semiconductor_datasheets
+    # Multi-shard domain: searches the legacy collection plus the Docling
+    # shard together (RRF merge). Indexing remains exclusive-write: a
+    # document lives in only one shard.
+    collections:
+      - name: document_index_semiconductor_datasheets_docling_v1
+        pipeline: docling
     profile: local-hybrid
     embedding_model_key: local:dense_default
     model_type: local
