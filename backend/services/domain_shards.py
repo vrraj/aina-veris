@@ -12,9 +12,10 @@ call site.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from backend.core import settings
+from backend.retrieval.fusion import reciprocal_rank_fusion
 
 
 @dataclass(frozen=True)
@@ -161,3 +162,160 @@ def delete_document_from_shards(source: str, shard_names: Sequence[str]) -> dict
             client.close()
         except Exception:
             pass
+
+
+def _search_view(
+    view,
+    *,
+    mode: str,
+    query: str,
+    top_k: int,
+    score_threshold: Optional[float],
+    query_filter: Optional[Dict[str, Any]],
+    with_payload: bool,
+    exact: bool,
+) -> Dict[str, Any]:
+    """Run a single-collection search against the given shard view."""
+    caps = view._get_collection_vector_capabilities()
+    effective_mode = mode
+    fallback_reason = None
+
+    if mode == "hybrid" and not (caps.get("has_dense") and caps.get("has_sparse")):
+        effective_mode = "dense"
+        fallback_reason = "collection_missing_dense_or_sparse"
+    elif mode == "sparse" and not caps.get("has_sparse"):
+        effective_mode = "dense"
+        fallback_reason = "collection_missing_sparse"
+
+    effective_score_threshold = score_threshold if effective_mode == "dense" else None
+
+    if effective_mode == "hybrid":
+        results = view.search_similar_hybrid(
+            query=query,
+            limit=top_k,
+            score_threshold=effective_score_threshold,
+            query_filter=query_filter,
+            with_payload=with_payload,
+            exact=exact,
+        )
+    elif effective_mode == "sparse":
+        results = view.search_similar_sparse(
+            query=query,
+            limit=top_k,
+            score_threshold=effective_score_threshold,
+            query_filter=query_filter,
+            with_payload=with_payload,
+            exact=exact,
+        )
+    else:
+        results = view.search_similar(
+            query=query,
+            limit=top_k,
+            score_threshold=effective_score_threshold,
+            query_filter=query_filter,
+            with_payload=with_payload,
+            exact=exact,
+        )
+
+    return {
+        "results": results,
+        "requested_search_mode": mode,
+        "effective_search_mode": effective_mode,
+        "fallback_reason": fallback_reason,
+        "vector_capabilities": caps,
+    }
+
+
+def fan_out(
+    active_domain: Optional[str],
+    *,
+    top_k: int,
+    search_call,
+) -> List[Dict[str, Any]]:
+    """Run ``search_call(view)`` across the domain's existing shards and
+    RRF-merge the candidate lists.
+
+    ``search_call`` receives either ``None`` (single-shard fast path: use
+    the primary db as-is) or a shard view produced by
+    ``QdrantDB.for_collection(name)``. Each shard contributes up to
+    ``top_k`` candidates; the merged list is capped at ``top_k``.
+    """
+    shards = resolve_domain_shards(active_domain)
+    names = [s.name for s in shards]
+    if len(names) == 1:
+        collections = names
+    else:
+        existing = existing_shard_names(names)
+        collections = [name for name in names if name in existing]
+
+    if len(collections) <= 1:
+        return search_call(None)
+
+    entries = [
+        {"query": name, "results": search_call(name)} for name in collections
+    ]
+    return reciprocal_rank_fusion(entries, limit=max(1, int(top_k)))
+
+
+def search_shards(
+    qdrant_db,
+    *,
+    active_domain: Optional[str],
+    query: str,
+    search_mode: str,
+    top_k: int,
+    score_threshold: Optional[float] = None,
+    query_filter: Optional[Dict[str, Any]] = None,
+    with_payload: bool = True,
+    exact: bool = True,
+) -> Dict[str, Any]:
+    """Search a domain's corpus across all its existing shards.
+
+    Common service for every search path (chat, search endpoint, retrieval
+    orchestration). Single-shard domains take the unchanged
+    single-collection path; multi-shard domains query each existing shard
+    with the mode its vector layout supports (top_k candidates per shard)
+    and merge the candidate lists with reciprocal-rank fusion.
+    """
+    mode = str(search_mode or "dense").strip().lower()
+
+    def _run(name):
+        view = qdrant_db if name is None else qdrant_db.for_collection(name)
+        return _search_view(
+            view,
+            mode=mode,
+            query=query,
+            top_k=top_k,
+            score_threshold=score_threshold,
+            query_filter=query_filter,
+            with_payload=with_payload,
+            exact=exact,
+        )
+
+    shards = resolve_domain_shards(active_domain)
+    names = [s.name for s in shards]
+    if len(names) == 1:
+        return _run(None)
+
+    existing = existing_shard_names(names)
+    collections = [name for name in names if name in existing]
+    if len(collections) <= 1:
+        return _run(None)
+
+    shard_entries = []
+    shard_modes: Dict[str, str] = {}
+    for name in collections:
+        single = _run(name)
+        shard_modes[name] = single["effective_search_mode"]
+        shard_entries.append({"query": name, "results": single["results"]})
+
+    merged = reciprocal_rank_fusion(shard_entries, limit=max(1, int(top_k)))
+    primary_mode = shard_modes.get(collections[0]) or mode
+    return {
+        "results": merged,
+        "requested_search_mode": mode,
+        "effective_search_mode": primary_mode,
+        "fallback_reason": None,
+        "vector_capabilities": qdrant_db._get_collection_vector_capabilities(),
+        "shards_searched": shard_modes,
+    }

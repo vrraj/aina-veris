@@ -62,6 +62,7 @@ from backend.services.domain_shards import (
     count_document_in_shards as _count_document_in_shards,
     delete_document_from_shards as _delete_document_from_shards,
 )
+from backend.services.domain_shards import search_shards as _search_shards
 from backend.services.collection_admin import (
     CollectionNotFoundError,
     list_collections as _list_collections,
@@ -1261,58 +1262,28 @@ async def search_content(search_request: SearchRequest):
             search_mode = str(search_request.search_mode or "dense").strip().lower()
             if search_mode not in {"dense", "hybrid", "sparse"}:
                 raise HTTPException(status_code=400, detail="search_mode must be one of: dense, hybrid, sparse")
-            effective_score_threshold = score_threshold if search_mode == "dense" else None
-            requested_search_mode = search_mode
-            effective_search_mode = search_mode
-            fallback_reason = None
 
-            try:
-                caps = qdrant_db._get_collection_vector_capabilities()
-            except Exception:
-                caps = {"has_dense": True, "has_sparse": False}
-
-            if search_mode == "hybrid" and not (caps.get("has_dense") and caps.get("has_sparse")):
-                effective_search_mode = "dense"
-                fallback_reason = "collection_missing_dense_or_sparse"
-            elif search_mode == "sparse" and not caps.get("has_sparse"):
-                effective_search_mode = "dense"
-                fallback_reason = "collection_missing_sparse"
-            
-            # Use QdrantDB directly for search mode selection.
-            if effective_search_mode == "hybrid":
-                results = qdrant_db.search_similar_hybrid(
-                    query=search_request.query,
-                    limit=search_request.limit,
-                    query_filter=qdrant_filter,
-                    score_threshold=effective_score_threshold,
-                    exact=exact,
-                    with_payload=with_payload,
-                )
-            elif effective_search_mode == "sparse":
-                results = qdrant_db.search_similar_sparse(
-                    query=search_request.query,
-                    limit=search_request.limit,
-                    query_filter=qdrant_filter,
-                    score_threshold=effective_score_threshold,
-                    exact=exact,
-                    with_payload=with_payload,
-                )
-            else:
-                results = qdrant_db.search_similar(
-                    query=search_request.query,
-                    limit=search_request.limit,
-                    query_filter=qdrant_filter,
-                    score_threshold=effective_score_threshold,
-                    exact=exact,
-                    with_payload=with_payload
-                )
+            # Shared multi-shard search: resolves the mode per shard's vector
+            # layout and RRF-merges multi-shard candidates.
+            shard_result = _search_shards(
+                qdrant_db,
+                active_domain=search_request.active_domain,
+                query=search_request.query,
+                search_mode=search_mode,
+                top_k=search_request.limit,
+                score_threshold=score_threshold,
+                query_filter=qdrant_filter,
+                with_payload=with_payload,
+                exact=exact,
+            )
+            results = shard_result["results"]
             logger.debug("Search results count: %d", len(results))
             return SearchResponse(
                 results=results,
                 total=len(results),
-                requested_search_mode=requested_search_mode,
-                effective_search_mode=effective_search_mode,
-                fallback_reason=fallback_reason,
+                requested_search_mode=shard_result["requested_search_mode"],
+                effective_search_mode=shard_result["effective_search_mode"],
+                fallback_reason=shard_result["fallback_reason"],
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -11,6 +11,7 @@ from backend.llm.llm_client import LLMError
 from backend.retrieval.embedding_router import _FASTEMBED_PROVIDER
 from backend.retrieval.orchestration import run_retrieval_orchestration
 from backend.retrieval.schemas import EmbeddingSpec
+from backend.services.domain_shards import fan_out as shard_fan_out
 from backend.stream_emit import emit_stage
 
 logger = logging.getLogger(__name__)
@@ -222,21 +223,35 @@ def run_retrieval_stage(
                     local_embedding_spec,
                 )
                 query_vector = (embedding_result.vectors or [[]])[0]
-                results = db.search_similar_by_embedding(
-                    query_embedding=query_vector,
-                    limit=int(top_k),
-                    score_threshold=float(score_threshold),
-                    with_payload=True,
-                    exact=True,
+
+                def _search_by_embedding(shard_name):
+                    view = db if shard_name is None else db.for_collection(shard_name)
+                    return view.search_similar_by_embedding(
+                        query_embedding=query_vector,
+                        limit=int(top_k),
+                        score_threshold=float(score_threshold),
+                        with_payload=True,
+                        exact=True,
+                    )
+
+                results = shard_fan_out(
+                    active_domain, top_k=int(top_k), search_call=_search_by_embedding
                 )
             else:
-                results = db.search_similar(
-                    query=effective_query,
-                    limit=int(top_k),
-                    score_threshold=float(score_threshold),
-                    with_vectors=False,
-                    with_payload=True,
-                    exact=True,
+
+                def _search_by_query(shard_name):
+                    view = db if shard_name is None else db.for_collection(shard_name)
+                    return view.search_similar(
+                        query=effective_query,
+                        limit=int(top_k),
+                        score_threshold=float(score_threshold),
+                        with_vectors=False,
+                        with_payload=True,
+                        exact=True,
+                    )
+
+                results = shard_fan_out(
+                    active_domain, top_k=int(top_k), search_call=_search_by_query
                 )
         except LLMError as exc:
             if (getattr(exc, "kind", "") or "") == "rate_limit":

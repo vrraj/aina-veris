@@ -3,6 +3,7 @@ from qdrant_client.http.models import Filter, FieldCondition, MatchValue, Batch,
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from backend.core.schemas import PayloadUpdateRequest
+import copy
 import logging
 from backend.core.config import settings
 from backend.llm.llm_client import embed, get_model_info
@@ -34,7 +35,7 @@ class QdrantDB:
         # domain.  A request can explicitly target another domain.
         self.vector_type = vector_type if vector_type is not None else settings.vector_type
         self.last_embedding_usage: Dict[str, int] = {"input_tokens": 0, "total_tokens": 0}
-        
+
         # Ensure target exists. Use get_collection so aliases resolve correctly.
         try:
             self.client.get_collection(collection_name)
@@ -110,6 +111,17 @@ class QdrantDB:
                 raise
 
     
+    def for_collection(self, collection_name: str) -> "QdrantDB":
+        """Shallow view of this handle bound to another collection.
+
+        Shares the client connection and embedding stack. Unlike
+        __init__, this does NOT ensure the collection exists — used for
+        searching additional domain shards that are known to exist.
+        """
+        view = copy.copy(self)
+        view.collection_name = collection_name
+        return view
+
     def _build_filter(self, query_filter: Optional[Dict]) -> Optional[models.Filter]:
         """Translate a simple dict (e.g., {"url": "...", "source": "..."})
         into a Qdrant Filter. Special-case: `url` maps to `url_lower` and is
