@@ -73,8 +73,8 @@ SmolVLM is default because the reference deployment is CPU-only; switch to
 | Docker on Linux + NVIDIA | `cuda` | NVIDIA Container Toolkit + CUDA torch wheels (see CPU vs GPU below) |
 | Native host run (Apple Silicon) | `mps` | `PDF_DOCLING_ACCELERATOR_DEVICE=mps`, `QDRANT_HOST=localhost`, `QDRANT_PORT=6335`, `python run.py` from `.venv`; Qdrant stays in Docker |
 
-Measured on the SiT1534 datasheet (13 pages, 44 pictures / 14 VLM-eligible
-at ≥5% page area):
+Measured on a real 13-page MEMS-oscillator datasheet (44 pictures / 14
+VLM-eligible at ≥5% page area):
 
 | Path | Time |
 |---|---|
@@ -334,6 +334,22 @@ Settings (see `.env.example`):
 | `PDF_DOCLING_PICTURE_DESCRIPTION_MODEL` | `smolvlm` | Captioning VLM preset: `smolvlm` (SmolVLM-256M, CPU-friendly) or `granite` (granite-vision-3.3-2b, heavier). |
 | `PDF_DOCLING_IMAGES_SCALE` | `1.0` | Render scale for generated page/picture bitmaps (1.0 = 72 DPI). VLM crop resolution = this × the preset's 2.0; use `2.0` when figure micro-text must be legible to the VLM. Higher values cost memory + per-figure inference. |
 
+### Configuration recipes
+
+Why these knobs exist and when to combine them:
+
+| Scenario | Settings | Why |
+|---|---|---|
+| Default serving (container, CPU) | *(defaults — nothing set)* | Standard extraction only; no VLM download or per-figure cost. Right for everyday indexing/search. |
+| Figure-rich datasheets on Apple Silicon | `PDF_DOCLING_PICTURE_DESCRIPTION=true`, `PDF_DOCLING_IMAGES_SCALE=2.0`, run with `PDF_DOCLING_ACCELERATOR_DEVICE=mps python run.py` natively | Figure content becomes searchable; `mps` only reaches the GPU outside Docker; scale 2.0 makes micro-text (package dims, tolerances) legible to the VLM. |
+| Figure captions on Linux+NVIDIA | `PDF_DOCLING_ACCELERATOR_DEVICE=cuda` (+ CUDA torch wheels); optionally `..._MODEL=granite` | GPU container path; granite's larger VLM earns its cost when figures are dense and a GPU is present. |
+| Scanned / image-only PDFs | `PDF_DOCLING_DO_OCR=true` | rapidocr OCR kicks in for pages with no text layer. |
+| Tuning cost vs coverage | `PDF_DOCLING_TABLE_MODE=fast`, `PDF_DOCLING_NUM_THREADS`, `PDF_DOCLING_WARMUP_ON_STARTUP=false` | `fast` trades table accuracy for speed; threads bound CPU inference; disabling warmup defers model download to first request. |
+
+`.env` feeds the container via `env_file` and host runs via pydantic
+settings — the same file serves both; use shell env vars (which beat
+`.env`) to scope GPU settings to native runs only.
+
 ### Picture description behavior
 
 When enabled, the standard pipeline stays in charge of layout and tables;
@@ -343,9 +359,10 @@ the VLM only captions `picture` items. Notes:
   `picture_area_threshold`), which filters logos/icons but also small
   figures.
 - `PDF_DOCLING_IMAGES_SCALE=2.0` is recommended for micro-detail
-  datasheets: measured on SiT1534 land-pattern/package figures, 288-DPI
-  crops surfaced tolerance callouts (`0.55+0.05`, `POD-35 Rev A`) that
-  144-DPI crops missed entirely. Negligible extra cost on `mps`.
+  datasheets: measured on land-pattern/package figures in a real
+  datasheet, 288-DPI crops surfaced tolerance callouts (`0.55+0.05`,
+  drawing revision labels) that 144-DPI crops missed entirely. Negligible
+  extra cost on `mps`.
 - Generated text lands in the picture's `verbatim_text` and is chunked as a
   `caption` block carrying the figure's `item_refs`/`regions`, so citations
   still deep-link to the exact figure box.

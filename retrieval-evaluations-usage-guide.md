@@ -19,8 +19,8 @@ dataset case declares *expectations*, not exact strings:
 
 ```yaml
 queries:
-  - query: "output swing range for the SiT1534?"
-    expected_document: sit1534          # substring on hit's source/url/document_id/title
+  - query: "output swing range for the oscillator?"
+    expected_document: "085e18dd"       # substring on hit's source/url/document_id/title
     expected_page: 6                    # optional — must appear in hit's page_numbers
     must_contain: ["250 mV", "800 mV"]  # optional — substrings on chunk text
     must_contain_mode: any              # any (default) | all

@@ -17,7 +17,7 @@ def evals_dir(tmp_path, monkeypatch):
 def _case(**overrides):
     case = {
         "query": "output swing range",
-        "expected_document": "sit1534",
+        "expected_document": "mems-osc",
         "expected_page": 5,
         "must_contain": ["250 mV", "800 mV"],
         "must_contain_mode": "any",
@@ -104,9 +104,9 @@ def test_delete_keeps_backup(evals_dir):
 
 def _payload(**overrides):
     payload = {
-        "source": "file://SiT1534__abc.pdf",
+        "source": "file://MEMS-OSC__abc.pdf",
         "document_id": "sha256:deadbeef",
-        "title": "SiT1534 Datasheet",
+        "title": "MEMS Oscillator Datasheet",
         "page_numbers": [5],
         "text": "the swing can be programmed between 250 mV and 800 mV",
         "display_text": "",

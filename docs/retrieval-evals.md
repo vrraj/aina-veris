@@ -42,10 +42,10 @@ expected document substring, optional expected page, optional must-contain
 strings and any/all mode.
 
 ```yaml
-description: SiT1534 oscillator + LM358 op-amp datasheets
+description: MEMS oscillator + LM358 op-amp datasheets
 queries:
-  - query: "output swing range for the SiT1534?"
-    expected_document: sit1534      # substring on source/url/document_id
+  - query: "output swing range for the oscillator?"
+    expected_document: "085e18dd"   # substring on source/url/document_id
     expected_page: 6                # optional — checked in page_numbers
     must_contain: ["250 mV", "800 mV"]  # optional — substring on chunk text
     must_contain_mode: any          # any (default) | all
