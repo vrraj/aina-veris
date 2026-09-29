@@ -59,13 +59,18 @@ Model choices for the figure-caption stage:
 
 | | `smolvlm` (default) | `granite` | granite-docling-258M |
 |---|---|---|---|
+| Model | HuggingFaceTB/SmolVLM-256M-Instruct | ibm-granite/granite-vision-3.3-2b | ibm-granite/granite-docling-258M |
 | Role | figure captioning | figure captioning | whole-page parser — *replaces* this pipeline (not used) |
 | Weights | ~0.5 GB | ~4–5 GB | ~0.5 GB |
 | Fit | built for edge/CPU | richer captions on dense figures; needs GPU | different job |
 
-SmolVLM is default because the reference deployment is CPU-only; switch to
-`granite` (granite-vision-3.3-2b) when a GPU is available via
-`PDF_DOCLING_PICTURE_DESCRIPTION_MODEL`.
+SmolVLM-256M is default because it is the smallest captioning VLM Docling
+ships and the reference deployment is CPU-constrained — on MPS it produces
+usable figure captions at ~30–60 s per figure. If captions miss detail you
+need (fine axis labels, dense callouts), the setting also accepts **any
+HuggingFace repo id**, so a middle step to test is
+`PDF_DOCLING_PICTURE_DESCRIPTION_MODEL=HuggingFaceTB/SmolVLM-500M-Instruct`;
+`granite` is the heavyweight option when a GPU is available.
 
 | Deployment | Docling device | How |
 |---|---|---|
@@ -331,7 +336,7 @@ Settings (see `.env.example`):
 | `PDF_DOCLING_ACCELERATOR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, `mps`, `cuda`, `cuda:N`, `xpu`. |
 | `PDF_DOCLING_NUM_THREADS` | `4` | CPU threads for Docling model inference. |
 | `PDF_DOCLING_PICTURE_DESCRIPTION` | `false` | Send detected picture regions to a captioning VLM so figure content is indexed as searchable caption chunks. |
-| `PDF_DOCLING_PICTURE_DESCRIPTION_MODEL` | `smolvlm` | Captioning VLM preset: `smolvlm` (SmolVLM-256M, CPU-friendly) or `granite` (granite-vision-3.3-2b, heavier). |
+| `PDF_DOCLING_PICTURE_DESCRIPTION_MODEL` | `smolvlm` | Captioning VLM: `smolvlm`, `granite`, or any HuggingFace repo id (e.g. `HuggingFaceTB/SmolVLM-500M-Instruct`). |
 | `PDF_DOCLING_IMAGES_SCALE` | `1.0` | Render scale for generated page/picture bitmaps (1.0 = 72 DPI). VLM crop resolution = this × the preset's 2.0; use `2.0` when figure micro-text must be legible to the VLM. Higher values cost memory + per-figure inference. |
 
 ### Configuration recipes

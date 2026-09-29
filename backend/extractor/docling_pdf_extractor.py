@@ -257,15 +257,18 @@ def _build_converter(
         device=_normalize_device(accelerator_device),
     )
     if picture_description:
-        preset_name = _PICTURE_DESCRIPTION_PRESETS.get(
-            str(picture_description_model or "").strip().lower(),
-            "smolvlm_picture_description",
-        )
-        preset = globals()[preset_name]
+        model_name = str(picture_description_model or "").strip().lower()
+        preset_name = _PICTURE_DESCRIPTION_PRESETS.get(model_name)
+        if preset_name:
+            repo_id = globals()[preset_name].repo_id
+        elif model_name:
+            repo_id = str(picture_description_model).strip()  # raw HF repo id
+        else:
+            repo_id = smolvlm_picture_description.repo_id
         options.do_picture_description = True
         options.generate_picture_images = True
         options.picture_description_options = PictureDescriptionVlmOptions(
-            repo_id=preset.repo_id,
+            repo_id=repo_id,
             prompt=_PICTURE_DESCRIPTION_PROMPT,
         )
     return DocumentConverter(
