@@ -885,10 +885,15 @@
       (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number)
     );
     if (/^file:/i.test(raw) && pl.document_id) {
-      const region = Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].bbox_norm;
-      if (region && page) {
-        const bbox = region.map((n) => Number(n).toFixed(4)).join(',');
-        return `/pdf-viewer.html?doc=${encodeURIComponent(pl.document_id)}&page=${page}&bbox=${bbox}`;
+      const regions = Array.isArray(pl.regions) ? pl.regions : [];
+      const onPage = regions.filter(
+        (r) => r && r.page_number === page && Array.isArray(r.bbox_norm)
+      );
+      if (onPage.length && page) {
+        const boxes = onPage
+          .map((r) => `bbox=${r.bbox_norm.map((n) => Number(n).toFixed(4)).join(',')}`)
+          .join('&');
+        return `/pdf-viewer.html?doc=${encodeURIComponent(pl.document_id)}&page=${page}&${boxes}`;
       }
       const base = `/docling-document/${encodeURIComponent(pl.document_id)}`;
       return page ? `${base}#page=${page}` : base;

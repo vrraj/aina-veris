@@ -4,7 +4,8 @@
 //   doc=<document_id>   served via /docling-document/{document_id}
 //   src=<http(s) url>   fetched directly (subject to remote CORS)
 //   page=<n>            1-based page to open
-//   bbox=x0,y0,x1,y1    normalized (0-1, top-left origin) region to highlight
+//   bbox=x0,y0,x1,y1    normalized (0-1, top-left origin) region to highlight;
+//                       repeatable — one box is drawn per bbox param
 import * as pdfjsLib from '/static/vendor/pdfjs/pdf.min.mjs';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/static/vendor/pdfjs/pdf.worker.min.mjs';
@@ -23,11 +24,12 @@ const rawLink = document.getElementById('raw_link');
 const docId = (params.get('doc') || '').trim();
 const srcParam = (params.get('src') || '').trim();
 const initialPage = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
-const bboxParam = (params.get('bbox') || '')
-  .split(',')
-  .map((v) => parseFloat(v))
-  .filter((v) => Number.isFinite(v));
-const highlightBox = bboxParam.length === 4 ? bboxParam : null;
+const highlightBoxes = params
+  .getAll('bbox')
+  .map((s) =>
+    s.split(',').map((v) => parseFloat(v)).filter((v) => Number.isFinite(v))
+  )
+  .filter((b) => b.length === 4);
 
 const sourceUrl = docId
   ? `/docling-document/${encodeURIComponent(docId)}`
@@ -48,15 +50,16 @@ function drawHighlight(cssWidth, cssHeight, showBox) {
   overlay.innerHTML = '';
   overlay.style.width = `${cssWidth}px`;
   overlay.style.height = `${cssHeight}px`;
-  if (!highlightBox || !showBox) return;
-  const [x0, y0, x1, y1] = highlightBox;
-  const box = document.createElement('div');
-  box.className = 'region-box';
-  box.style.left = `${x0 * cssWidth}px`;
-  box.style.top = `${y0 * cssHeight}px`;
-  box.style.width = `${(x1 - x0) * cssWidth}px`;
-  box.style.height = `${(y1 - y0) * cssHeight}px`;
-  overlay.appendChild(box);
+  if (!highlightBoxes.length || !showBox) return;
+  for (const [x0, y0, x1, y1] of highlightBoxes) {
+    const box = document.createElement('div');
+    box.className = 'region-box';
+    box.style.left = `${x0 * cssWidth}px`;
+    box.style.top = `${y0 * cssHeight}px`;
+    box.style.width = `${(x1 - x0) * cssWidth}px`;
+    box.style.height = `${(y1 - y0) * cssHeight}px`;
+    overlay.appendChild(box);
+  }
 }
 
 async function renderPage(num) {
@@ -88,7 +91,7 @@ async function renderPage(num) {
   pageIndicator.textContent = `Page ${num} / ${pdfDoc.numPages}`;
   prevBtn.disabled = num <= 1;
   nextBtn.disabled = num >= pdfDoc.numPages;
-  if (highlightBox && num === initialPage) overlay.scrollIntoView({ block: 'center' });
+  if (highlightBoxes.length && num === initialPage) overlay.scrollIntoView({ block: 'center' });
 }
 
 async function load() {
