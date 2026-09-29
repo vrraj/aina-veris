@@ -319,3 +319,27 @@ def search_shards(
         "vector_capabilities": qdrant_db._get_collection_vector_capabilities(),
         "shards_searched": shard_modes,
     }
+
+
+def map_shards(qdrant_db, active_domain: Optional[str], fn) -> Dict[str, Any]:
+    """Run ``fn(view)`` on each existing shard of the domain.
+
+    Returns ``{collection_name: result}``. Single-shard fast path: no
+    Qdrant probe; ``fn`` runs on ``qdrant_db`` itself (which is bound to
+    the primary collection).
+    """
+    shards = resolve_domain_shards(active_domain)
+    names = [s.name for s in shards]
+    if len(names) > 1:
+        existing = existing_shard_names(names)
+        names = [name for name in names if name in existing]
+
+    results: Dict[str, Any] = {}
+    for name in names:
+        view = (
+            qdrant_db
+            if name == qdrant_db.collection_name
+            else qdrant_db.for_collection(name)
+        )
+        results[name] = fn(view)
+    return results

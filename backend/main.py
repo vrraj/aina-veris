@@ -63,6 +63,7 @@ from backend.services.domain_shards import (
     delete_document_from_shards as _delete_document_from_shards,
 )
 from backend.services.domain_shards import search_shards as _search_shards
+from backend.services.domain_shards import map_shards as _map_shards
 from backend.services.collection_admin import (
     CollectionNotFoundError,
     list_collections as _list_collections,
@@ -319,6 +320,14 @@ async def list_docs_data(limit: int = None, url: str = None, active_domain: Opti
             embedding_model_key=domain_cfg["embedding_model_key"],
         )
         
+        # Shard-aware: list documents across all the domain's existing shards
+        from backend.services.domain_shards import resolve_domain_shards, existing_shard_names
+
+        domain_shards_list = [s.name for s in resolve_domain_shards(active_domain)]
+        if len(domain_shards_list) > 1:
+            _existing = existing_shard_names(domain_shards_list)
+            domain_shards_list = [n for n in domain_shards_list if n in _existing]
+
         # Create filter if URL is provided
         scroll_filter = None
         if url:
@@ -332,51 +341,54 @@ async def list_docs_data(limit: int = None, url: str = None, active_domain: Opti
                 ]
             )
 
-        # Attempt a simple scroll to fetch documents; best-effort approach
-        offset = None
-        while True:
-            try:
-                # The underlying client.scroll returns (points, next_offset)
-                resp = qd.client.scroll(
-                    collection_name=qd.collection_name,
-                    offset=offset,
-                    limit=100,
-                    scroll_filter=scroll_filter
-                )
-                if isinstance(resp, tuple) and len(resp) == 2:
-                    points, offset = resp
-                else:
-                    points = resp
+        for shard_name in domain_shards_list:
+            view = qd if shard_name == qd.collection_name else qd.for_collection(shard_name)
+            # Attempt a simple scroll to fetch documents; best-effort approach
+            offset = None
+            while True:
+                try:
+                    # The underlying client.scroll returns (points, next_offset)
+                    resp = view.client.scroll(
+                        collection_name=view.collection_name,
+                        offset=offset,
+                        limit=100,
+                        scroll_filter=scroll_filter
+                    )
+                    if isinstance(resp, tuple) and len(resp) == 2:
+                        points, offset = resp
+                    else:
+                        points = resp
+                        offset = None
+                except TypeError:
+                    # Fallback if the client returns a different structure
+                    points = []
                     offset = None
-            except TypeError:
-                # Fallback if the client returns a different structure
-                points = []
-                offset = None
 
-            if not isinstance(points, list):
-                points = list(points)
+                if not isinstance(points, list):
+                    points = list(points)
 
-            for p in points:
-                payload = getattr(p, 'payload', {}) or {}
-                base_url = payload.get('base_url') or payload.get('url')
-                title = payload.get('title') or ''
-                # total_chunks: prefer explicit field, else infer from a chunks list
-                total_chunks = payload.get('total_chunks')
-                if total_chunks is None:
-                    chunks = payload.get('chunks') or []
-                    total_chunks = len(chunks)
-                updated_at = payload.get('updated_at', '') or ''
-                if base_url:
-                    # Only add if URL matches (case-insensitive) or no URL filter
-                    if not url or (isinstance(base_url, str) and url.lower() in base_url.lower()):
-                        data['documents'].append({
-                            'base_url': base_url,
-                            'title': title,
-                            'total_chunks': int(total_chunks) if total_chunks is not None else 0,
-                            'updated_at': updated_at,
-                        })
-            if not offset:
-                break
+                for p in points:
+                    payload = getattr(p, 'payload', {}) or {}
+                    base_url = payload.get('base_url') or payload.get('url')
+                    title = payload.get('title') or ''
+                    # total_chunks: prefer explicit field, else infer from a chunks list
+                    total_chunks = payload.get('total_chunks')
+                    if total_chunks is None:
+                        chunks = payload.get('chunks') or []
+                        total_chunks = len(chunks)
+                    updated_at = payload.get('updated_at', '') or ''
+                    if base_url:
+                        # Only add if URL matches (case-insensitive) or no URL filter
+                        if not url or (isinstance(base_url, str) and url.lower() in base_url.lower()):
+                            data['documents'].append({
+                                'base_url': base_url,
+                                'title': title,
+                                'total_chunks': int(total_chunks) if total_chunks is not None else 0,
+                                'updated_at': updated_at,
+                                'collection': shard_name,
+                            })
+                if not offset:
+                    break
         # Respect the limit at display time; the UI will slice, and the download will provide full data
         if limit is not None and limit > 0:
             data['documents'] = data['documents'][:limit]
@@ -1453,8 +1465,16 @@ async def delete_document(url: str, active_domain: Optional[str] = None):
     domain_cfg = _resolve_domain_config(active_domain)
     embeddings_manager = EmbeddingsManager(active_domain=domain_cfg["effective_domain"])
     try:
-        embeddings_manager.delete_document(url)
-        return {"message": "Document deleted successfully"}
+        deleted = _map_shards(
+            embeddings_manager.qdrant_db,
+            active_domain,
+            lambda view: view.delete_by_url(url),
+        )
+        return {
+            "message": "Document deleted successfully",
+            "deleted_points": int(sum(deleted.values())),
+            "per_collection": deleted,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1741,8 +1761,16 @@ def delete_preview(
     qdrant_db = _build_domain_qdrant(active_domain)
     try:
         base = _strip_fragment_url(url)
-        total = qdrant_db.count_points_by_base_url(base)
-        sample_chunks = qdrant_db.get_chunks_by_base_url(base, limit=sample_limit)
+        totals = _map_shards(
+            qdrant_db, active_domain, lambda view: view.count_points_by_base_url(base)
+        )
+        samples = _map_shards(
+            qdrant_db,
+            active_domain,
+            lambda view: view.get_chunks_by_base_url(base, limit=sample_limit),
+        )
+        sample_chunks = [chunk for chunks in samples.values() for chunk in chunks]
+        sample_chunks = sample_chunks[:sample_limit]
         # Optionally, keep sample payloads smaller by trimming long text fields
         max_text_chars = int(getattr(settings, "debug_log_truncate_chars", 500))
         for ch in sample_chunks:
@@ -1756,7 +1784,8 @@ def delete_preview(
             "input_url": url,
             "base_url": base,
             "base_url_lower": (base or "").lower(),
-            "total_chunks": int(total),
+            "total_chunks": int(sum(totals.values())),
+            "per_collection": totals,
             "sample_limit": int(sample_limit),
             "sample_chunks": sample_chunks,
         }
@@ -1783,11 +1812,14 @@ def delete_by_base_url(request: DeleteByBaseURLRequest, http_request: Request):
         if not base:
             raise HTTPException(status_code=400, detail="Either url or base_url must be provided")
 
-        deleted = qdrant_db.delete_by_base_url(base)
+        deleted = _map_shards(
+            qdrant_db, request.active_domain, lambda view: view.delete_by_base_url(base)
+        )
         return {
             "base_url": base,
             "base_url_lower": (base or "").lower(),
-            "deleted_points": int(deleted),
+            "deleted_points": int(sum(deleted.values())),
+            "per_collection": deleted,
         }
     except HTTPException:
         raise

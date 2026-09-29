@@ -176,9 +176,9 @@ class _FakeView:
 class _FakeDB(_FakeView):
     """Primary db that is also a view and can produce shard views."""
 
-    def __init__(self, shard_specs):
-        primary_caps, primary_results = shard_specs["index_semi"]
-        super().__init__("index_semi", primary_caps, primary_results)
+    def __init__(self, shard_specs, primary_name="index_semi"):
+        primary_caps, primary_results = shard_specs[primary_name]
+        super().__init__(primary_name, primary_caps, primary_results)
         self._shard_specs = shard_specs
         self.views = {}
 
@@ -301,3 +301,55 @@ def test_fan_out_primitive_merges_multi_shard(domain_config, monkeypatch):
     merged = shard_module.fan_out("semi", top_k=2, search_call=search_call)
     assert seen == ["index_semi", "index_semi_docling_v1"]
     assert len(merged) == 2  # capped at top_k
+
+
+# ---------------------------------------------------------------------------
+# map_shards: run an operation on each existing shard
+# ---------------------------------------------------------------------------
+
+
+def test_map_shards_single_collection_runs_on_primary(domain_config):
+    db = _FakeDB({"index_plain": ({"has_dense": True, "has_sparse": False}, [])}, primary_name="index_plain")
+    seen = []
+
+    def fn(view):
+        seen.append(view.collection_name)
+        return 7
+
+    assert shard_module.map_shards(db, "plain", fn) == {"index_plain": 7}
+    assert seen == ["index_plain"]
+    assert db.views == {}  # no views created on the fast path
+
+
+def test_map_shards_maps_over_existing_shards(domain_config, monkeypatch):
+    monkeypatch.setattr(
+        "qdrant_client.QdrantClient",
+        lambda **kwargs: _FakeClient(["index_semi", "index_semi_docling_v1"], {}),
+    )
+    db = _FakeDB(
+        {
+            "index_semi": ({"has_dense": True, "has_sparse": False}, []),
+            "index_semi_docling_v1": ({"has_dense": True, "has_sparse": False}, []),
+        }
+    )
+    seen = []
+
+    def fn(view):
+        seen.append(view.collection_name)
+        return 3
+
+    result = shard_module.map_shards(db, "semi", fn)
+    assert result == {"index_semi": 3, "index_semi_docling_v1": 3}
+    # primary runs on the db itself; the extra runs on a view
+    assert seen == ["index_semi", "index_semi_docling_v1"]
+    assert set(db.views) == {"index_semi_docling_v1"}
+
+
+def test_map_shards_skips_missing_shard(domain_config, monkeypatch):
+    monkeypatch.setattr(
+        "qdrant_client.QdrantClient",
+        lambda **kwargs: _FakeClient(["index_semi"], {}),
+    )
+    db = _FakeDB({"index_semi": ({"has_dense": True, "has_sparse": False}, [])})
+    result = shard_module.map_shards(db, "semi", lambda view: 5)
+    assert result == {"index_semi": 5}
