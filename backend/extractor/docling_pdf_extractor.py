@@ -243,8 +243,10 @@ def _build_converter(
     num_threads: int,
     picture_description: bool = False,
     picture_description_model: str = "smolvlm",
+    images_scale: float = 1.0,
 ) -> "DocumentConverter":
     options = PdfPipelineOptions()
+    options.images_scale = float(images_scale)
     options.do_ocr = bool(do_ocr)
     try:
         options.table_structure_options.mode = TableFormerMode(table_mode)
@@ -278,6 +280,7 @@ def _get_converter(
     num_threads: int,
     picture_description: bool = False,
     picture_description_model: str = "smolvlm",
+    images_scale: float = 1.0,
 ) -> "DocumentConverter":
     key = (
         bool(do_ocr),
@@ -286,6 +289,7 @@ def _get_converter(
         max(1, int(num_threads)),
         bool(picture_description),
         str(picture_description_model or "smolvlm"),
+        float(images_scale),
     )
     if key not in _CONVERTER_CACHE:
         _CONVERTER_CACHE[key] = _build_converter(*key)
@@ -313,6 +317,7 @@ def prewarm_models() -> bool:
             int(getattr(app_settings, "pdf_docling_num_threads", 4)),
             bool(getattr(app_settings, "pdf_docling_picture_description", False)),
             str(getattr(app_settings, "pdf_docling_picture_description_model", "smolvlm")),
+            float(getattr(app_settings, "pdf_docling_images_scale", 1.0)),
         )
         logger.info("Docling warm-up complete: models ready")
         return True
@@ -632,6 +637,7 @@ def extract_pdf_document(
     num_threads: Optional[int] = None,
     picture_description: Optional[bool] = None,
     picture_description_model: Optional[str] = None,
+    images_scale: Optional[float] = None,
 ) -> DoclingExtraction:
     """Convert PDF bytes with Docling and build the typed extraction artifact.
 
@@ -667,6 +673,8 @@ def extract_pdf_document(
         picture_description_model = str(
             getattr(app_settings, "pdf_docling_picture_description_model", "smolvlm")
         )
+    if images_scale is None:
+        images_scale = float(getattr(app_settings, "pdf_docling_images_scale", 1.0))
 
     converter = _get_converter(
         do_ocr,
@@ -675,6 +683,7 @@ def extract_pdf_document(
         num_threads,
         picture_description,
         picture_description_model,
+        images_scale,
     )
     document_id = compute_document_id(pdf_bytes)
     filename = "document.pdf"

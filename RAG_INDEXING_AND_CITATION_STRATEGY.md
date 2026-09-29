@@ -332,6 +332,7 @@ Settings (see `.env.example`):
 | `PDF_DOCLING_NUM_THREADS` | `4` | CPU threads for Docling model inference. |
 | `PDF_DOCLING_PICTURE_DESCRIPTION` | `false` | Send detected picture regions to a captioning VLM so figure content is indexed as searchable caption chunks. |
 | `PDF_DOCLING_PICTURE_DESCRIPTION_MODEL` | `smolvlm` | Captioning VLM preset: `smolvlm` (SmolVLM-256M, CPU-friendly) or `granite` (granite-vision-3.3-2b, heavier). |
+| `PDF_DOCLING_IMAGES_SCALE` | `1.0` | Render scale for generated page/picture bitmaps (1.0 = 72 DPI). VLM crop resolution = this × the preset's 2.0; use `2.0` when figure micro-text must be legible to the VLM. Higher values cost memory + per-figure inference. |
 
 ### Picture description behavior
 

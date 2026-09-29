@@ -625,6 +625,12 @@ class Settings(BaseSettings):
     pdf_docling_picture_description: bool = False
     # "smolvlm" (256M, CPU-friendly) or "granite" (granite-vision-3.3-2b).
     pdf_docling_picture_description_model: str = "smolvlm"
+    # Base render scale for generated page/picture bitmaps (1.0 = 72 DPI).
+    # Effective VLM crop resolution is images_scale x the VLM preset's own
+    # scale (2.0), so 2.0 here yields ~288 DPI crops — needed for micro-text
+    # on figures (package outlines, 0.55mm callouts). Higher values cost
+    # memory and VLM prefill time on every generated image.
+    pdf_docling_images_scale: float = 1.0
 
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100
