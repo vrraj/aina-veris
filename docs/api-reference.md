@@ -12,7 +12,7 @@ points for applications.
 | Session chat | `POST /chat/session`, `POST /chat/{session_id}` | Server-managed in-memory history. |
 | Search | `POST /search` | Direct retrieval without answer generation. |
 | Ingestion | `POST /index`, `/pdf`, `/mediawiki/url`, `/embed` | Source-specific ingestion into a selected domain. |
-| Docling PDF ingestion | `POST /index-pdf-docling` | Additive technical-PDF pipeline with table structure and citation regions; see [Docling PDF pipeline](pdf-docling-pipeline.md). |
+| Docling PDF ingestion | `POST /index-pdf-docling` | Additive technical-PDF pipeline with table structure and citation regions; see [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md). |
 | Retrieval evaluation | `POST /retrieval-evals/run` | Inspect retrieval and reranking independently. |
 | Stage stream | `GET /chat/stream/stages?query_id=...` | SSE progress, metrics, and keepalives. |
 | A2A | `/agents/<agent-name>/` | Fixed-domain JSON-RPC research tasks. |

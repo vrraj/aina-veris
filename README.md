@@ -219,7 +219,7 @@ The Docling path runs on CPU by default (`PDF_DOCLING_ACCELERATOR_DEVICE`,
 build). An opt-in picture-description stage
 (`PDF_DOCLING_PICTURE_DESCRIPTION`) sends detected figures to a captioning
 VLM so diagrams are searchable. See
-[docs/pdf-docling-pipeline.md](docs/pdf-docling-pipeline.md) for the full
+[RAG_INDEXING_AND_CITATION_STRATEGY.md](RAG_INDEXING_AND_CITATION_STRATEGY.md) for the full
 configuration table.
 
 ### Batch ingestion

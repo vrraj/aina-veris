@@ -1,34 +1,48 @@
 # RAG Indexing and Citation Strategy
 
 How a document becomes searchable chunks, and how an answer links back to the
-exact passage it came from. This is the strategy map — implementation details
-live in the docs linked at the bottom.
+exact passage it came from. This is both the strategy map and the reference
+for the Docling ingestion path (endpoint, configuration, operational notes).
 
 ```mermaid
 flowchart LR
     subgraph Ingest["Ingestion"]
         PDF["Simple PDFs"] -->|"POST /pdf"| EXT1["pymupdf4llm<br>markdown extract"]
-        DS["Datasheets / dense<br>technical PDFs"] -->|"POST /index-pdf-docling"| EXT2["Docling<br>layout + TableFormer<br>+ provenance"]
-        HTML["HTML / MediaWiki"] --> EXT3["HTML / MediaWiki<br>extractors<br>(heading-id anchors)"]
+        HTML["HTML / MediaWiki"] --> EXT3["HTML / MediaWiki extractors<br>(heading-id anchors)"]
+        DS["Datasheets / dense<br>technical PDFs"] -->|"POST /index-pdf-docling"| DOCPIPE
+
+        subgraph DOCPIPE["Docling pipeline"]
+            direction TB
+            LAY["layout model<br>docling-layout-heron"]
+            LAY --> PROSE["prose +<br>section hierarchy"]
+            LAY --> TF["TableFormer (accurate)<br>→ table cells"]
+            LAY --> PIC["picture detection<br>→ region + bbox"]
+            PIC -.->|"opt-in · ≥5% page area"| VLM["caption VLM<br>SmolVLM-256M /<br>granite-vision-3.3-2b"]
+            OCR["rapidocr · opt-in<br>scanned pages"] -.-> PROSE
+            TF --> ART[/"DoclingDocument<br>+ per-item provenance"/]
+            PROSE --> ART
+            PIC --> ART
+            VLM -.->|"meta.description<br>→ verbatim_text"| ART
+        end
     end
 
     subgraph Index["Indexing"]
-        EXT1 --> CHUNK["Structure-aware<br>chunking"]
-        EXT2 --> CHUNK
+        EXT1 --> CHUNK["Structure-aware<br>chunker"]
         EXT3 --> CHUNK
+        DOCPIPE -->|"extraction items"| CHUNK
         CHUNK --> META["Payload metadata:<br>regions / bbox_norm,<br>page_numbers, citation_label,<br>section anchors"]
         META --> DENSE["Dense: BGE-base 768<br>(or hosted 1536)"]
-        META --> SPARSE["Sparse: SPLADE"]
-        DENSE --> QD[("Qdrant collections<br>named vectors")]
+        META --> SPARSE["Sparse: SPLADE<br>Splade_PP_en_v1"]
+        DENSE --> QD[("Qdrant named vectors<br>dense + sparse")]
         SPARSE --> QD
-        EXT2 -.->|"persisted PDF +<br>extraction artifact"| STORE[("docling_artifacts")]
+        DOCPIPE -.->|"artifact JSON +<br>raw PDF"| STORE[("docling_artifacts")]
     end
 
     subgraph Retrieve["Retrieval & citations"]
         QD -->|"hybrid dense+sparse<br>RRF fusion"| ANS["Chat answer<br>+ structured sources"]
         ANS --> LINKS{"Deep link by<br>source type"}
         STORE -->|"GET /docling-document/{id}"| VIEW
-        LINKS -->|"file:// + regions"| VIEW["pdf-viewer.html<br>page render + yellow<br>bbox highlight"]
+        LINKS -->|"file:// + regions"| VIEW["pdf-viewer.html (vendored pdf.js)<br>page render + yellow<br>bbox highlight"]
         LINKS -->|"http(s) PDF"| PAGEL["url#page=N"]
         LINKS -->|"HTML / wiki"| FRAG["url#id:~:text=<br>scroll-to-text"]
     end
@@ -42,6 +56,17 @@ flowchart LR
 | Datasheets & dense technical PDFs — multicolumn, complex tables, figures, footnotes | `POST /index-pdf-docling` | Docling (layout analysis + TableFormer) | Preserves table structure, section hierarchy, and per-item bounding-box provenance |
 | HTML pages | HTML ingestion route | `html_extractor.py` | DOM-aware; heading `id`s become `#section` anchors in chunk URLs |
 | MediaWiki pages | MediaWiki ingestion route | `mediawiki_extractor.py` | Same anchor behavior via section URLs |
+
+Models used per stage:
+
+| Stage | Model | Purpose |
+|---|---|---|
+| Layout detection | `docling-layout-heron` | Finds prose, tables, pictures, sections with boxes |
+| Table structure | TableFormer (`accurate` default) | Deterministic cell extraction for spec tables |
+| OCR | rapidocr (opt-in, `PDF_DOCLING_DO_OCR`) | Scanned/image-only pages |
+| Figure captions | SmolVLM-256M or granite-vision-3.3-2b (opt-in) | Turns detected picture regions into searchable text |
+| Dense embedding | `BAAI/bge-base-en-v1.5` 768-dim (or hosted 1536) | Semantic similarity |
+| Sparse embedding | `prithivida/Splade_PP_en_v1` | Learned lexical match — part numbers, units, test conditions |
 
 Notes:
 
@@ -64,7 +89,8 @@ Notes:
 - Legacy PDF: markdown-aware section chunks.
 - Docling: structure-aware chunks — prose sentence packing with section
   breadcrumbs, table row groups with repeated headers, plus row-level
-  key/value chunks for large tables.
+  key/value chunks for large tables. Figure descriptions (when the VLM
+  stage is enabled) become `caption` chunks bound to the figure region.
 - HTML/wiki: section-scoped chunks keyed by heading anchors.
 
 **Key payload fields** (citation-critical):
@@ -126,12 +152,242 @@ be re-indexed (no fallback paths).
   points cleanly; migrate legacy collections off `legacy-dense` only when
   re-indexing anyway.
 
+# Docling pipeline reference
+
+`POST /index-pdf-docling` is an **additive** ingestion path for technical
+PDFs — datasheets with part numbers, specification tables, footnotes, and
+multicolumn layouts. It runs alongside `POST /pdf` and never changes it:
+the legacy route, its extractor, and its collections are untouched.
+
+The pipeline is built on [Docling](https://docling-project.github.io/docling/)
+and records citation-grade provenance for every indexed chunk: the source
+item reference, page number, and a normalized bounding box suitable for
+viewer overlays.
+
+## When to use it
+
+- Use `POST /pdf` for general documents (existing behavior).
+- Use `POST /index-pdf-docling` for technical/datasheet PDFs where table
+  structure, part-number lookup, and precise citation regions matter.
+
+In the **Web UI** (Index PDF tab), check **Use Docling pipeline** before
+clicking *Index PDF* — the same form then submits to `/index-pdf-docling`
+with the selected domain, estimate, force-delete, max-chunks, and
+skip-sections settings. Unchecked, the form keeps using the legacy `/pdf`
+pipeline.
+
+## How it works
+
+See the diagram above — inside the Docling box, the layout model feeds
+prose, TableFormer, and picture detection; the optional VLM captions
+picture regions; everything lands in a typed extraction artifact saved
+outside Qdrant, then chunked, embedded, and upserted to
+`<domain_collection>_docling_v1`.
+
+Key properties:
+
+- **Isolated collection.** Points are written to a dedicated versioned
+  collection (`<domain_collection>_docling_v1`, e.g.
+  `document_index_semiconductor_datasheets_docling_v1`). Legacy `/pdf`
+  points are never read or written by this path.
+- **Stable IDs.** `document_id = sha256(PDF bytes)`; point IDs derive
+  deterministically from `(domain, pipeline_version, source_key,
+  document_id, chunk)`. Re-indexing overwrites points instead of
+  duplicating them, and stale points from a smaller replacement are retired
+  only after the new version is upserted.
+- **Structure-aware chunks.** Prose is split within sections with a title +
+  section breadcrumb prefix on the embedded text; `display_text` stays
+  verbatim. Small tables stay intact; large tables split into row groups
+  with repeated headers, plus a row-level key/value representation
+  (`representation_type=row_kv`) for exact parameter/value lookup.
+- **Provenance.** Every chunk carries `item_refs`, `page_numbers`, and
+  normalized `regions` (`[x0, y0, x1, y1]`, top-left origin, fractions of
+  page width/height). Items without a trustworthy box are indexed with
+  `highlight_status=unavailable` rather than a fabricated region.
+- **No silent fallback.** If Docling conversion fails, the route returns a
+  visible error (`422`). It never degrades to the legacy parser.
+- **Artifacts.** The full extraction artifact (items, table cells, raw
+  boxes) is serialized to `docling_artifacts/` with a checksum and referenced
+  by `artifact_uri` from each point, keeping citation geometry tied to the
+  exact indexed bytes.
+
+## Request
+
+Same shape as `POST /pdf`:
+
+```json
+{
+  "url": "https://example.com/part.pdf",
+  "file": "<base64 PDF bytes — overrides url bytes, url stays canonical>",
+  "filename": "part.pdf",
+  "active_domain": "semiconductor_datasheets",
+  "estimate": false,
+  "force_delete": false,
+  "max_chunks": 0,
+  "skip_sections": []
+}
+```
+
+- `estimate=true` runs extraction and chunk planning only — no Qdrant or
+  artifact writes.
+- `force_delete=true` re-indexes this pipeline's points for the document.
+  Without it, an already-indexed document returns an `already_indexed`
+  confirmation instead of writing.
+- `max_chunks` truncates and reports `chunks_omitted_by_max_chunks`.
+- `skip_sections` matches normalized heading paths (default: none).
+
+## Response
+
+```json
+{
+  "message": "PDF indexed via Docling pipeline",
+  "pipeline": "pdf_docling_v1",
+  "pipeline_version": "1.0",
+  "source": "https://example.com/part.pdf",
+  "document_id": "sha256:...",
+  "title": "...",
+  "page_count": 12,
+  "collection": "document_index_semiconductor_datasheets_docling_v1",
+  "chunks_indexed": 48,
+  "chunks_omitted_by_max_chunks": 0,
+  "stale_points_deleted": 0,
+  "tokens_used": 15230,
+  "embedding_cost": 0.0015230,
+  "parsing_warnings": [],
+  "provenance_coverage": 0.97,
+  "artifact_uri": "internal://documents/sha256:..."
+}
+```
+
+`provenance_coverage` is the fraction of extracted items with a valid
+highlight region. `parsing_warnings` surfaces Docling conversion errors and
+missing provenance for tables/sections.
+
+## Point payload (allowlisted)
+
+Each Qdrant point stores: `pipeline`, `pipeline_version`, `domain`,
+`source_key`, `document_id`, `source`/`url`/`url_lower`/`base_url`/
+`base_url_lower`, `document_type`, `title`, `section`, `subsection`,
+`section_path`, `chunk_id`, `chunk_index`, `total_chunks`, `block_type`,
+`representation_type`, `text` (embedded text), `display_text`,
+`item_refs`, `regions`, `page_numbers`, `highlight_status`,
+`citation_label`, `artifact_uri`, `embedding_model`/`provider`/`runtime`,
+and `token_count`.
+
+## Configuration
+
+Settings (see `.env.example`):
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `PDF_DOCLING_ENABLED` | `true` | Feature gate for the route. |
+| `PDF_DOCLING_WARMUP_ON_STARTUP` | `true` | Pre-download Docling models in a background task after startup. |
+| `PDF_DOCLING_ARTIFACT_DIR` | `docling_artifacts` | Extraction artifact store. |
+| `PDF_DOCLING_CHUNK_SIZE` | `500` | Embedding token budget per chunk. |
+| `PDF_DOCLING_CHUNK_OVERLAP` | `50` | Prose overlap tokens. |
+| `PDF_DOCLING_TABLE_ROWS_PER_CHUNK` | `12` | Data rows per table row-group chunk. |
+| `PDF_DOCLING_MIN_ROWS_ROW_REPR` | `8` | Tables with more data rows also get `row_kv` chunks. |
+| `PDF_DOCLING_COLLECTION_SUFFIX` | `_docling_v1` | Dedicated collection suffix. |
+| `PDF_DOCLING_DO_OCR` | `false` | Enable Docling OCR (rapidocr) for scanned pages. |
+| `PDF_DOCLING_TABLE_MODE` | `accurate` | Docling TableFormer mode (`fast` or `accurate`). |
+| `PDF_DOCLING_ACCELERATOR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, `mps`, `cuda`, `cuda:N`, `xpu`. |
+| `PDF_DOCLING_NUM_THREADS` | `4` | CPU threads for Docling model inference. |
+| `PDF_DOCLING_PICTURE_DESCRIPTION` | `false` | Send detected picture regions to a captioning VLM so figure content is indexed as searchable caption chunks. |
+| `PDF_DOCLING_PICTURE_DESCRIPTION_MODEL` | `smolvlm` | Captioning VLM preset: `smolvlm` (SmolVLM-256M, CPU-friendly) or `granite` (granite-vision-3.3-2b, heavier). |
+
+### Picture description behavior
+
+When enabled, the standard pipeline stays in charge of layout and tables;
+the VLM only captions `picture` items. Notes:
+
+- Pictures under **5% of the page area** are skipped (Docling's
+  `picture_area_threshold`), which filters logos/icons but also small
+  figures.
+- Generated text lands in the picture's `verbatim_text` and is chunked as a
+  `caption` block carrying the figure's `item_refs`/`regions`, so citations
+  still deep-link to the exact figure box.
+- **CPU cost is real**: ~10+ min per full-page figure on container CPU
+  (SmolVLM, scale 2.0, 200-token cap). A picture-heavy datasheet can take
+  hours — prefer enabling on GPU (`cuda`/`mps`) or indexing selectively.
+- VLM text is a description, not extraction — do not rely on it for exact
+  numeric values in tables; TableFormer remains the authority there.
+
+## CPU vs GPU
+
+Two independent knobs control whether Docling uses CPU or GPU:
+
+**1. Runtime device** (`PDF_DOCLING_ACCELERATOR_DEVICE`) selects the inference
+device per conversion, regardless of which PyTorch build is installed:
+
+- `auto` (default) — best available (CUDA on NVIDIA Linux, MPS on Apple
+  Silicon, CPU otherwise)
+- `cpu` — force CPU; avoids GPU/accelerator initialization entirely
+- `mps` / `cuda` / `cuda:N` / `xpu` — pin a specific accelerator
+
+`PDF_DOCLING_NUM_THREADS` bounds CPU inference threads (relevant in `cpu`
+mode and for CPU-side ops). Both apply only to the Docling pipeline; nothing
+else in the app is affected.
+
+**2. Install-time PyTorch build (CPU by default).** `requirements.txt`
+resolves PyTorch from the CPU-only wheel index
+(`https://download.pytorch.org/whl/cpu`). The CPU wheels carry a `+cpu`
+local version (e.g. `2.14.0+cpu`), which pip ranks above the plain PyPI
+build, so `torch`/`torchvision` resolve to the CPU variant and the
+`nvidia-*` packages are skipped entirely (~200 MB instead of ~4 GB on
+Linux; macOS is CPU-only either way). `requirements.lock` (used by CI and
+the Docker image) is generated from `requirements.txt` and inherits the
+same CPU-only resolution.
+
+To use an NVIDIA GPU despite the CPU default, reinstall the CUDA build
+after installing requirements:
+
+```bash
+pip install --force-reinstall torch torchvision \
+  --index-url https://download.pytorch.org/whl/cu126   # or your CUDA variant
+```
+
+and set `PDF_DOCLING_ACCELERATOR_DEVICE=auto` or `cuda`.
+
+> **macOS note:** `requirements.lock` pins Linux CPU wheels
+> (`torch==...+cpu`), so install on macOS from `requirements.txt` (unpinned)
+> rather than the lock.
+
+## Operational notes
+
+- **Dependencies.** Docling (pinned in `requirements.txt`) pulls the
+  torch stack; the dependency lock reflects this. First conversion on a
+  machine downloads Docling model artifacts into the HuggingFace cache.
+  When `PDF_DOCLING_WARMUP_ON_STARTUP` is true (default), a background
+  task builds the converter after app startup so the first request is
+  fast; in Docker, `HF_HOME=/root/models/huggingface` lands those
+  downloads inside the persisted `LOCAL_MODELS_CACHE_PATH` volume so
+  container recreation does not re-download them.
+- **Host access to Qdrant.** When running the app on the host (not in
+  Docker), set `QDRANT_PORT=6335` per `docker-compose.yml`.
+- **CI.** Unit tests run without Docling model inference (programmatic
+  `DoclingDocument` fixtures). The end-to-end conversion test is opt-in via
+  `RUN_DOCLING_E2E=1`.
+
+## Limitations and next steps
+
+- Validated against a synthetic datasheet fixture (drawn table, headings,
+  prose). **Geometry and table quality must be re-validated on real
+  datasheet PDFs before production use** — the fixture cannot establish
+  scanning, rotation, or multi-column quality.
+- Retrieval currently targets the new collection directly. Hybrid dense +
+  sparse fusion tuning (spec stage 4) is deferred follow-up work tracked in
+  `PDF_DOCLING_TASKS.md`.
+- VLM figure descriptions are implemented but off by default
+  (`PDF_DOCLING_PICTURE_DESCRIPTION`); validate against the retrieval eval
+  harness before enabling broadly. ColPali visual retrieval remains a later
+  experiment.
+
 ## References
 
-- [Docling PDF pipeline](docs/pdf-docling-pipeline.md) — endpoint, payload
-  schema, configuration, operational notes
 - `prompts/domain_embedding_config.yaml` — domain profiles and validation
   rules (header comment)
 - [README — Domain configuration](README.md) — profile matrix and when to
   use each
+- [Retrieval evaluations usage guide](retrieval-evaluations-usage-guide.md)
+  — A/B pipeline comparison harness
 - `PDF_DOCLING_TASKS.md` — implementation work log
