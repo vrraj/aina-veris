@@ -328,6 +328,30 @@ Same shape as `POST /pdf`:
 - `max_chunks` truncates and reports `chunks_omitted_by_max_chunks`.
 - `skip_sections` matches normalized heading paths (default: none).
 
+**Live progress (SSE).** `POST /index-pdf-docling/stream` runs the same
+pipeline but streams `text/event-stream` frames as it goes, so the UI can
+show where the time is actually spent during a cold start:
+
+```text
+event: stage
+data: {"message": "Loading model: docling-layout-heron, TableFormer (accurate), HuggingFaceTB/SmolVLM-256M-Instruct"}
+
+event: stage
+data: {"message": "Extracting document (Docling layout analysis)..."}
+
+event: stage
+data: {"message": "Indexing 48 chunks into Qdrant..."}
+
+event: result
+data: {...same payload as POST /index-pdf-docling...}
+```
+
+The model-loading stage is emitted **only on a cold converter build**
+(first index, or after `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` eviction);
+warm runs skip straight to extraction. Failures arrive as
+`event: error` with a `detail` field. The plain endpoint is unchanged for
+non-streaming clients.
+
 ## Response
 
 ```json
