@@ -96,8 +96,18 @@ _DOMAIN_PROFILES: Dict[str, Dict[str, Any]] = {
 }
 
 
+class DomainCollectionSpec(BaseModel):
+    """An additional shard collection searched alongside the primary."""
+
+    name: str
+    pipeline: Optional[str] = None
+
+
 class DomainEmbeddingEntry(BaseModel):
     collection_name: str
+    # Additional shard collections for the domain. The primary
+    # (collection_name) is always searched; these are searched alongside it.
+    collections: Optional[List[DomainCollectionSpec]] = None
     profile: Optional[Literal[
         "legacy-dense", "hosted-dense", "local-dense", "hosted-hybrid", "local-hybrid"
     ]] = None
@@ -143,6 +153,18 @@ class DomainEmbeddingEntry(BaseModel):
                 "search_mode must be 'dense' when vector_type is 'dense' or unset "
                 "(sparse/hybrid search requires vector_type: hybrid)"
             )
+
+        if self.collections:
+            names = [str(s.name or "").strip() for s in self.collections]
+            if any(not n for n in names):
+                raise ValueError("collections entries must have a non-empty name")
+            if len(set(names)) != len(names):
+                raise ValueError("collections entries must have unique names")
+            if self.collection_name in names:
+                raise ValueError(
+                    "collections must not repeat collection_name (the primary "
+                    "shard is always included)"
+                )
         return self
 
 
