@@ -77,3 +77,87 @@ def existing_shard_names(shard_names: Sequence[str]) -> set:
         except Exception:
             pass
     return {name for name in shard_names if name in existing}
+
+
+def _url_filter(source: str):
+    from qdrant_client.http import models
+
+    return models.Filter(
+        must=[
+            models.FieldCondition(
+                key="url_lower", match=models.MatchValue(value=source.lower())
+            )
+        ]
+    )
+
+
+def count_document_in_shards(
+    active_domain: Optional[str],
+    source: str,
+    exclude_shard: Optional[str] = None,
+) -> dict:
+    """Count points whose ``url`` payload matches ``source`` across the
+    domain's existing shards (skipping ``exclude_shard``).
+
+    Both PDF pipelines store the canonical source string in the ``url``
+    payload (lower-cased in ``url_lower``), so this is the cross-pipeline
+    document identity. Returns ``{collection_name: count}``.
+    """
+    from qdrant_client import QdrantClient
+
+    shards = resolve_domain_shards(active_domain)
+    names = [s.name for s in shards if s.name != exclude_shard]
+    existing = existing_shard_names(names)
+    if not existing:
+        return {}
+
+    client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+    try:
+        counts = {}
+        flt = _url_filter(source)
+        for name in sorted(existing):
+            counts[name] = int(
+                client.count(collection_name=name, count_filter=flt, exact=True).count
+            )
+        return {name: n for name, n in counts.items() if n > 0}
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
+def delete_document_from_shards(source: str, shard_names: Sequence[str]) -> dict:
+    """Delete points matching ``source`` from the given collections.
+
+    Returns ``{collection_name: deleted_count}`` for collections that
+    existed. Callers should pass collections confirmed to hold the
+    document (from ``count_document_in_shards``).
+    """
+    from qdrant_client import QdrantClient
+    from qdrant_client.http import models
+
+    existing = existing_shard_names(shard_names)
+    if not existing:
+        return {}
+
+    client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+    try:
+        deleted = {}
+        flt = _url_filter(source)
+        for name in sorted(existing):
+            before = int(
+                client.count(collection_name=name, count_filter=flt, exact=True).count
+            )
+            if before:
+                client.delete(
+                    collection_name=name,
+                    points_selector=models.FilterSelector(filter=flt),
+                )
+                deleted[name] = before
+        return deleted
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass

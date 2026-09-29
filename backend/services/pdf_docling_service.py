@@ -28,6 +28,11 @@ from backend.extractor.docling_pdf_extractor import (
 from backend.services.pdf_docling_indexing import (
     count_docling_points_for_document,
     index_docling_chunks,
+    resolve_docling_collection_name,
+)
+from backend.services.domain_shards import (
+    count_document_in_shards,
+    delete_document_from_shards,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,6 +121,33 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
                 "hint": "Resubmit with force_delete=true to re-index this document",
             }
 
+    # Exclusive write: a document may live in only one shard of a domain.
+    # If it exists in another shard (e.g. legacy /pdf), refuse unless
+    # force_delete is set, in which case index here and delete the other
+    # shard's points after a successful upsert.
+    other_shards: Dict[str, int] = {}
+    if bool(getattr(settings, "check_document_indexed", True)) and not pdf_input.estimate:
+        try:
+            other_shards = count_document_in_shards(
+                pdf_input.active_domain,
+                source,
+                exclude_shard=resolve_docling_collection_name(pdf_input.active_domain),
+            )
+        except Exception as exc:
+            logger.warning("Cross-shard duplicate check failed for %s: %s", source, exc)
+        if other_shards and not pdf_input.force_delete:
+            return {
+                "message": "Document already indexed via a different pipeline",
+                "pipeline": "pdf_docling_v1",
+                "source": source,
+                "document_id": extraction.document_id,
+                "already_indexed": True,
+                "existing_collection": ", ".join(sorted(other_shards)),
+                "vectors_found": int(sum(other_shards.values())),
+                "confirmation_required": True,
+                "hint": "Resubmit with force_delete=true to migrate this document to the Docling pipeline",
+            }
+
     plan = build_chunks(
         extraction,
         max_chunks=pdf_input.max_chunks or None,
@@ -168,6 +200,25 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
         max_chunks=pdf_input.max_chunks or None,
     )
 
+    migrated_from: Dict[str, int] = {}
+    if other_shards:
+        # force_delete was set and the new version is upserted; retire the
+        # other shard's points to complete the pipeline migration.
+        try:
+            migrated_from = delete_document_from_shards(
+                source, list(other_shards.keys())
+            )
+            if migrated_from:
+                logger.info(
+                    "Migrated %s from %s to the Docling pipeline",
+                    source,
+                    ", ".join(migrated_from),
+                )
+        except Exception as exc:
+            logger.exception(
+                "Failed to retire prior-shard points for %s: %s", source, exc
+            )
+
     rate_per_mm = get_embedding_rate_per_mm_tokens()
     embedding_cost = (result["tokens_used"] * rate_per_mm) / 1_000_000.0
 
@@ -183,6 +234,7 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
         "chunks_indexed": result["vectors_indexed"],
         "chunks_omitted_by_max_chunks": plan.omitted_chunks,
         "stale_points_deleted": result["stale_points_deleted"],
+        "migrated_from_collections": migrated_from,
         "tokens_used": result["tokens_used"],
         "embedding_cost": round(embedding_cost, 8),
         "parsing_warnings": extraction.warnings,

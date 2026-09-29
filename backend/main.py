@@ -58,6 +58,10 @@ from backend.api.domain_indexing import (
     strip_fragment_url as _strip_fragment_url,
 )
 from backend.api.security import enforce_origin_host
+from backend.services.domain_shards import (
+    count_document_in_shards as _count_document_in_shards,
+    delete_document_from_shards as _delete_document_from_shards,
+)
 from backend.services.collection_admin import (
     CollectionNotFoundError,
     list_collections as _list_collections,
@@ -661,6 +665,31 @@ async def index_pdf(
             elif existing_count > 0 and bool(pdf_input.force_delete):
                 logger.info("force_delete=true; proceeding with reindex")
         
+        # Exclusive write: a document may live in only one shard of a domain.
+        # If it exists in another shard (e.g. the Docling collection), refuse
+        # unless force_delete is set, in which case index here and retire the
+        # other shard's points after a successful write.
+        other_shards: Dict[str, int] = {}
+        if bool(settings.check_document_indexed) and not pdf_input.estimate:
+            try:
+                other_shards = _count_document_in_shards(
+                    pdf_input.active_domain,
+                    source,
+                    exclude_shard=domain_cfg["collection_name"],
+                )
+            except Exception as e:
+                logger.warning("Cross-shard duplicate check failed for %s: %s", source, e)
+            if other_shards and not bool(pdf_input.force_delete):
+                return {
+                    "message": "Document already indexed via a different pipeline",
+                    "url": source,
+                    "already_indexed": True,
+                    "existing_collection": ", ".join(sorted(other_shards)),
+                    "vectors_found": int(sum(other_shards.values())),
+                    "confirmation_required": True,
+                    "hint": "Resubmit with 'Force delete existing' checked to migrate this document to the legacy PDF pipeline",
+                }
+
         extractor = PDFExtractor(
             chunk_size=settings.html_chunk_size,
             chunk_overlap=settings.html_chunk_overlap,
@@ -754,13 +783,25 @@ async def index_pdf(
             force_delete=pdf_input.force_delete,
             max_chunks=pdf_input.max_chunks,
         )
-        
+
+        migrated_from: Dict[str, int] = {}
+        if other_shards:
+            # force_delete was set and the new points are written; retire the
+            # other shard's points to complete the pipeline migration.
+            try:
+                migrated_from = _delete_document_from_shards(
+                    source, list(other_shards.keys())
+                )
+            except Exception as e:
+                logger.exception("Failed to retire prior-shard points for %s: %s", source, e)
+
         rate_per_mm = _get_embedding_rate_per_mm_tokens()
         embedding_cost = (result.get("tokens_used", 0) * rate_per_mm) / 1_000_000.0
         return {
             "message": "PDF content indexed successfully",
             "chunks_indexed": len(chunks),
             "vectors_indexed": result.get("vectors_indexed", 0),
+            "migrated_from_collections": migrated_from,
             "tokens_used": result.get("tokens_used", 0),
             "embedding_cost": round(embedding_cost, 8),
             "source": source,
