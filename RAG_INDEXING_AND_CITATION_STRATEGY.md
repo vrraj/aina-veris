@@ -48,6 +48,44 @@ flowchart LR
     end
 ```
 
+## Deployment configurations and performance
+
+**Why hybrid parsing:** running a VLM over an entire document burns
+inference re-reading text that deterministic parsers extract for free.
+This pipeline pays VLM cost only on detected picture regions — layout,
+tables, and text stay deterministic and cheap.
+
+Model choices for the figure-caption stage:
+
+| | `smolvlm` (default) | `granite` | granite-docling-258M |
+|---|---|---|---|
+| Role | figure captioning | figure captioning | whole-page parser — *replaces* this pipeline (not used) |
+| Weights | ~0.5 GB | ~4–5 GB | ~0.5 GB |
+| Fit | built for edge/CPU | richer captions on dense figures; needs GPU | different job |
+
+SmolVLM is default because the reference deployment is CPU-only; switch to
+`granite` (granite-vision-3.3-2b) when a GPU is available via
+`PDF_DOCLING_PICTURE_DESCRIPTION_MODEL`.
+
+| Deployment | Docling device | How |
+|---|---|---|
+| Docker on macOS | **CPU only** — Apple GPU is unreachable from the Linux VM | default compose stack |
+| Docker on Linux + NVIDIA | `cuda` | NVIDIA Container Toolkit + CUDA torch wheels (see CPU vs GPU below) |
+| Native host run (Apple Silicon) | `mps` | `PDF_DOCLING_ACCELERATOR_DEVICE=mps`, `QDRANT_HOST=localhost`, `QDRANT_PORT=6335`, `python run.py` from `.venv`; Qdrant stays in Docker |
+
+Measured on the SiT1534 datasheet (13 pages, 44 pictures / 14 VLM-eligible
+at ≥5% page area):
+
+| Path | Time |
+|---|---|
+| Standard pipeline, container CPU | ~86 s/doc |
+| + picture captions, container CPU | ~13 min for a near-full-page figure; ~1–3 h/doc overall |
+| + picture captions, native `mps` | ~230 s for a page incl. 5 captions — minutes per doc |
+
+Practical pattern: keep the Docker stack CPU for serving/search, run
+figure-heavy indexing batches from a native `mps` process — both write to
+the same Qdrant.
+
 ## 1. Ingestion paths (routing by document type)
 
 | Document type | Endpoint | Extractor | Why |
@@ -306,9 +344,9 @@ the VLM only captions `picture` items. Notes:
 - Generated text lands in the picture's `verbatim_text` and is chunked as a
   `caption` block carrying the figure's `item_refs`/`regions`, so citations
   still deep-link to the exact figure box.
-- **CPU cost is real**: ~10+ min per full-page figure on container CPU
-  (SmolVLM, scale 2.0, 200-token cap). A picture-heavy datasheet can take
-  hours — prefer enabling on GPU (`cuda`/`mps`) or indexing selectively.
+- **CPU cost is real** — see the measured performance table above; on
+  CPU-only deployments index selectively or accept hours per
+  picture-heavy doc.
 - VLM text is a description, not extraction — do not rely on it for exact
   numeric values in tables; TableFormer remains the authority there.
 
