@@ -424,3 +424,48 @@ def test_converter_idle_ttl_reads_settings(monkeypatch):
         config.settings, "ingestion_model_cache_idle_ttl_seconds", 42
     )
     assert mod._converter_idle_timeout() == 42
+
+
+def test_get_converter_reports_model_loading_on_cold_build(monkeypatch):
+    import backend.extractor.docling_pdf_extractor as mod
+    from backend.retrieval.model_cache import TTLModelCache
+
+    class FakeConverter:
+        pass
+
+    monkeypatch.setattr(mod, "_build_converter", lambda *a: FakeConverter())
+    cache = TTLModelCache(idle_timeout=60)
+    monkeypatch.setattr(mod, "_CONVERTER_CACHE", cache)
+
+    messages = []
+    mod._get_converter(
+        False, "fast", "cpu", 4, True, "smolvlm", 1.0,
+        progress=messages.append,
+    )
+    assert len(messages) == 1
+    assert messages[0].startswith("Loading model:")
+    assert "docling-layout-heron" in messages[0]
+    assert "TableFormer (fast)" in messages[0]
+    assert "SmolVLM" in messages[0]
+
+    # Warm cache hit reports nothing.
+    messages.clear()
+    mod._get_converter(
+        False, "fast", "cpu", 4, True, "smolvlm", 1.0,
+        progress=messages.append,
+    )
+    assert messages == []
+
+
+def test_converter_model_names_includes_ocr_and_repo_id(monkeypatch):
+    import backend.extractor.docling_pdf_extractor as mod
+
+    names = mod._converter_model_names(True, "accurate", True, "smolvlm")
+    assert "docling-layout-heron" in names
+    assert "TableFormer (accurate)" in names
+    assert "RapidOCR" in names
+    assert any("SmolVLM" in n for n in names)
+
+    custom = mod._converter_model_names(False, "fast", True, "org/Custom-VLM-7B")
+    assert "org/Custom-VLM-7B" in custom
+    assert "RapidOCR" not in custom

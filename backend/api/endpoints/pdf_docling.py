@@ -6,7 +6,10 @@ backend/services/pdf_docling_service.py.
 """
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+import json
+import queue
+import threading
 
 from backend.api.security import enforce_origin_host
 from backend.core.config import settings
@@ -46,6 +49,50 @@ async def index_pdf_docling(pdf_input: PDFDoclingInput, request: Request):
         raise HTTPException(status_code=422, detail=message)
     except Exception as exc:  # unexpected — surface visibly, never fall back
         raise HTTPException(status_code=500, detail=f"Docling pipeline error: {exc}")
+
+
+@router.post(
+    "/index-pdf-docling/stream",
+    tags=["2. Ingest"],
+    summary="1e. Index PDF via Docling with live stage progress (SSE)",
+)
+async def index_pdf_docling_stream(pdf_input: PDFDoclingInput, request: Request):
+    """Streaming variant of /index-pdf-docling. Emits `event: stage` SSE
+    frames as the pipeline progresses (e.g. "Loading model: ..." on a cold
+    converter build, extraction, indexing), then a final `event: result`
+    carrying the same JSON body as the plain endpoint, or `event: error`.
+    The plain endpoint is unchanged for non-streaming clients.
+    """
+    if not bool(getattr(settings, "pdf_docling_enabled", True)):
+        raise HTTPException(status_code=503, detail="Docling PDF pipeline is disabled")
+
+    enforce_origin_host(request)
+
+    def event_stream():
+        events: "queue.Queue" = queue.Queue()
+
+        def progress(message: str) -> None:
+            events.put(("stage", {"message": message}))
+
+        def run() -> None:
+            try:
+                events.put(("result", run_docling_indexing(pdf_input, progress)))
+            except DoclingPipelineError as exc:
+                events.put(("error", {"detail": str(exc)}))
+            except Exception as exc:
+                events.put(("error", {"detail": f"Docling pipeline error: {exc}"}))
+            finally:
+                events.put(None)  # sentinel
+
+        threading.Thread(target=run, daemon=True).start()
+        while True:
+            item = events.get()
+            if item is None:
+                break
+            event, payload = item
+            yield f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.get(

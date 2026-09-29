@@ -81,11 +81,14 @@ def _resolve_source(pdf_input) -> Dict[str, Any]:
     return {"pdf_bytes": pdf_bytes, "source": source}
 
 
-def index_pdf_docling(pdf_input) -> Dict[str, Any]:
+def index_pdf_docling(pdf_input, progress=None) -> Dict[str, Any]:
     """Run the Docling pipeline: extract -> artifact -> chunks -> index.
 
     Returns a JSON-serializable result dict. `estimate` performs extraction
     and chunk planning only — no Qdrant writes, no artifact writes.
+    `progress` is an optional callable invoked with human-readable stage
+    messages (model loading, extraction, indexing) so callers can stream
+    them to the UI.
     """
     if not bool(getattr(settings, "pdf_docling_enabled", True)):
         raise DoclingPipelineError("Docling PDF pipeline is disabled (pdf_docling_enabled=false)")
@@ -94,7 +97,7 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
     pdf_bytes, source = resolved["pdf_bytes"], resolved["source"]
 
     try:
-        extraction = extract_pdf_document(pdf_bytes, source)
+        extraction = extract_pdf_document(pdf_bytes, source, progress=progress)
     except DoclingUnavailableError as exc:
         raise DoclingPipelineError(str(exc)) from exc
     except DoclingConversionError as exc:
@@ -190,6 +193,12 @@ def index_pdf_docling(pdf_input) -> Dict[str, Any]:
         # Source persistence is best-effort: citations still render with
         # page metadata; file:// links just won't be navigable.
         logger.warning("Could not persist source PDF for %s: %s", source, exc)
+
+    if progress is not None:
+        try:
+            progress(f"Indexing {len(plan.chunks)} chunks into Qdrant...")
+        except Exception:
+            logger.debug("progress callback failed", exc_info=True)
 
     result = index_docling_chunks(
         plan.chunks,

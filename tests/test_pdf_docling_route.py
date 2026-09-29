@@ -107,7 +107,7 @@ class TestService:
         extraction = build_extraction()
         monkeypatch.setattr(service_module, "_fetch_pdf", lambda url: b"pdf-bytes")
         monkeypatch.setattr(
-            service_module, "extract_pdf_document", lambda b, s: extraction
+            service_module, "extract_pdf_document", lambda b, s, **kw: extraction
         )
 
         def no_index(*a, **k):
@@ -138,7 +138,7 @@ class TestService:
         extraction = build_extraction()
         monkeypatch.setattr(service_module, "_fetch_pdf", lambda url: b"pdf-bytes")
         monkeypatch.setattr(
-            service_module, "extract_pdf_document", lambda b, s: extraction
+            service_module, "extract_pdf_document", lambda b, s, **kw: extraction
         )
         monkeypatch.setattr(
             service_module, "count_docling_points_for_document", lambda d, doc: 7
@@ -160,7 +160,7 @@ class TestService:
         extraction = build_extraction()
         monkeypatch.setattr(service_module, "_fetch_pdf", lambda url: b"pdf-bytes")
         monkeypatch.setattr(
-            service_module, "extract_pdf_document", lambda b, s: extraction
+            service_module, "extract_pdf_document", lambda b, s, **kw: extraction
         )
         monkeypatch.setattr(
             service_module, "count_docling_points_for_document", lambda d, doc: 0
@@ -192,3 +192,51 @@ class TestService:
         assert "embedding_cost" in result
         assert calls["source_key"] == "https://x/lm358.pdf"
         assert calls["artifact_uri"].startswith("internal://documents/")
+
+
+class TestStreamRoute:
+    def test_stream_emits_stage_and_result_events(self, monkeypatch):
+        def fake_service(pi, progress=None):
+            if progress:
+                progress("Loading model: docling-layout-heron, TableFormer (accurate)")
+                progress("Extracting document (Docling layout analysis)...")
+            return {"pipeline": "pdf_docling_v1", "chunks_indexed": 3}
+
+        monkeypatch.setattr(endpoint_module, "run_docling_indexing", fake_service)
+        response = asyncio.run(
+            endpoint_module.index_pdf_docling_stream(_make_input(), _FakeRequest())
+        )
+        assert response.media_type == "text/event-stream"
+
+        async def drain():
+            chunks = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+            return "".join(chunks)
+
+        body = asyncio.run(drain())
+        assert "event: stage" in body
+        assert "Loading model:" in body
+        assert "Extracting document" in body
+        assert "event: result" in body
+        assert '"chunks_indexed": 3' in body
+
+    def test_stream_maps_pipeline_error_to_error_event(self, monkeypatch):
+        def raise_pipeline(pi, progress=None):
+            raise DoclingPipelineError("conversion failed")
+
+        monkeypatch.setattr(endpoint_module, "run_docling_indexing", raise_pipeline)
+        response = asyncio.run(
+            endpoint_module.index_pdf_docling_stream(_make_input(), _FakeRequest())
+        )
+
+        async def drain():
+            chunks = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+            return "".join(chunks)
+
+        body = asyncio.run(drain())
+        assert "event: error" in body
+        assert "conversion failed" in body
+        assert "event: result" not in body

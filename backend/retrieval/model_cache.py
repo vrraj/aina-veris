@@ -29,6 +29,9 @@ class TTLModelCache:
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self.idle_timeout = idle_timeout
 
+    def __contains__(self, key) -> bool:
+        return key in self._cache
+
     def get(self, key: str, loader: Callable[[], Any]) -> Any:
         """Return the cached model for *key*, loading via *loader* on miss.
 

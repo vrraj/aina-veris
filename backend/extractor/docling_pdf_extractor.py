@@ -289,6 +289,40 @@ _PICTURE_DESCRIPTION_PROMPT = (
 )
 
 
+def _resolve_picture_description_repo_id(picture_description_model: Any) -> str:
+    """Map a preset name ('smolvlm'/'granite') or raw HF repo id to a repo id."""
+    model_name = str(picture_description_model or "").strip().lower()
+    preset_name = _PICTURE_DESCRIPTION_PRESETS.get(model_name)
+    if preset_name:
+        return globals()[preset_name].repo_id
+    if model_name:
+        return str(picture_description_model).strip()  # raw HF repo id
+    return smolvlm_picture_description.repo_id
+
+
+def _converter_model_names(
+    do_ocr: bool,
+    table_mode: str,
+    picture_description: bool,
+    picture_description_model: str,
+) -> List[str]:
+    """Human-readable model names a cold converter build will load."""
+    names = ["docling-layout-heron", f"TableFormer ({table_mode})"]
+    if do_ocr:
+        names.append("RapidOCR")
+    if picture_description:
+        names.append(_resolve_picture_description_repo_id(picture_description_model))
+    return names
+
+
+def _report(progress, message: str) -> None:
+    if progress is not None:
+        try:
+            progress(message)
+        except Exception:
+            logger.debug("progress callback failed", exc_info=True)
+
+
 def _build_converter(
     do_ocr: bool,
     table_mode: str,
@@ -310,14 +344,7 @@ def _build_converter(
         device=_normalize_device(accelerator_device),
     )
     if picture_description:
-        model_name = str(picture_description_model or "").strip().lower()
-        preset_name = _PICTURE_DESCRIPTION_PRESETS.get(model_name)
-        if preset_name:
-            repo_id = globals()[preset_name].repo_id
-        elif model_name:
-            repo_id = str(picture_description_model).strip()  # raw HF repo id
-        else:
-            repo_id = smolvlm_picture_description.repo_id
+        repo_id = _resolve_picture_description_repo_id(picture_description_model)
         options.do_picture_description = True
         options.generate_picture_images = True
         options.picture_description_options = PictureDescriptionVlmOptions(
@@ -337,6 +364,7 @@ def _get_converter(
     picture_description: bool = False,
     picture_description_model: str = "smolvlm",
     images_scale: float = 1.0,
+    progress=None,
 ) -> "DocumentConverter":
     key = (
         bool(do_ocr),
@@ -348,6 +376,11 @@ def _get_converter(
         float(images_scale),
     )
     cache = _get_converter_cache()
+    if key not in cache:
+        names = _converter_model_names(
+            do_ocr, table_mode, picture_description, picture_description_model
+        )
+        _report(progress, f"Loading model: {', '.join(names)}")
     return cache.get(key, lambda: _build_converter(*key))
 
 
@@ -693,12 +726,15 @@ def extract_pdf_document(
     picture_description: Optional[bool] = None,
     picture_description_model: Optional[str] = None,
     images_scale: Optional[float] = None,
+    progress=None,
 ) -> DoclingExtraction:
     """Convert PDF bytes with Docling and build the typed extraction artifact.
 
     `accelerator_device` selects the inference device ('auto', 'cpu', 'mps',
     'cuda', 'cuda:N', 'xpu'); `num_threads` bounds CPU inference threads.
-    Both default to the `pdf_docling_*` settings.
+    Both default to the `pdf_docling_*` settings. `progress` is an optional
+    callable invoked with human-readable stage messages (model loading,
+    conversion) so callers can surface them to the UI.
 
     Raises DoclingUnavailableError if docling is not installed and
     DoclingConversionError when conversion fails (no legacy fallback).
@@ -739,6 +775,7 @@ def extract_pdf_document(
         picture_description,
         picture_description_model,
         images_scale,
+        progress=progress,
     )
     document_id = compute_document_id(pdf_bytes)
     filename = "document.pdf"
@@ -750,6 +787,7 @@ def extract_pdf_document(
         pass
 
     try:
+        _report(progress, "Extracting document (Docling layout analysis)...")
         result = converter.convert(
             DocumentStream(name=filename, stream=io.BytesIO(pdf_bytes))
         )

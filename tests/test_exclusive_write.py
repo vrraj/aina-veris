@@ -145,7 +145,7 @@ def docling_pipeline(monkeypatch):
     calls = {"deleted": None}
 
     monkeypatch.setattr(
-        service_module, "extract_pdf_document", lambda b, s: _FakeExtraction()
+        service_module, "extract_pdf_document", lambda b, s, **kw: _FakeExtraction()
     )
     monkeypatch.setattr(service_module, "count_docling_points_for_document", lambda d, i: 0)
     monkeypatch.setattr(
