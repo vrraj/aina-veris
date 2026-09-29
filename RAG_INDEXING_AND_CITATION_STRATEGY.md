@@ -39,7 +39,11 @@ flowchart LR
     end
 
     subgraph Retrieve["Retrieval & citations"]
-        QD -->|"hybrid dense+sparse<br>RRF fusion"| ANS["Chat answer<br>+ structured sources"]
+        QD -->|"hybrid dense+sparse<br>RRF fusion"| FUSE["fused hits"]
+        FUSE -.->|"opt-in: use_colbert /<br>enable_cross_encoder_rerank"| RR["ColBERT v2 +<br>bge-reranker-base"]
+        FUSE --> ANS
+        RR -.-> ANS
+        ANS["Chat answer<br>+ structured sources"]
         ANS --> LINKS{"Deep link by<br>source type"}
         STORE -->|"GET /docling-document/{id}"| VIEW
         LINKS -->|"file:// + regions"| VIEW["pdf-viewer.html (vendored pdf.js)<br>page render + yellow<br>bbox highlight"]
@@ -100,16 +104,23 @@ the same Qdrant.
 | HTML pages | HTML ingestion route | `html_extractor.py` | DOM-aware; heading `id`s become `#section` anchors in chunk URLs |
 | MediaWiki pages | MediaWiki ingestion route | `mediawiki_extractor.py` | Same anchor behavior via section URLs |
 
-Models used per stage:
+Models used per stage (full inventory):
 
 | Stage | Model | Purpose |
 |---|---|---|
 | Layout detection | `docling-layout-heron` | Finds prose, tables, pictures, sections with boxes |
 | Table structure | TableFormer (`accurate` default) | Deterministic cell extraction for spec tables |
 | OCR | rapidocr (opt-in, `PDF_DOCLING_DO_OCR`) | Scanned/image-only pages |
-| Figure captions | SmolVLM-256M or granite-vision-3.3-2b (opt-in) | Turns detected picture regions into searchable text |
+| Figure captions | `SmolVLM-256M-Instruct` or `granite-vision-3.3-2b` or any HF repo id (opt-in, `PDF_DOCLING_PICTURE_DESCRIPTION*`) | Turns detected picture regions into searchable text |
 | Dense embedding | `BAAI/bge-base-en-v1.5` 768-dim (or hosted 1536) | Semantic similarity |
 | Sparse embedding | `prithivida/Splade_PP_en_v1` | Learned lexical match — part numbers, units, test conditions |
+| Late interaction | `colbert-ir/colbertv2.0` (opt-in, `use_colbert`) | Token-level precision for symbols/part numbers |
+| Reranker | `BAAI/bge-reranker-base` (opt-in, `enable_cross_encoder_rerank`) | Cross-encoder rescore of fused hits |
+| Answer generation | hosted LLM (OpenAI / Gemini per env keys) | Synthesizes the cited answer |
+
+Local models are defined in `prompts/local_models_registry.yaml` (dense,
+sparse, late-interaction, reranker tiers); Docling-stage models come from
+Docling's pinned pipeline presets.
 
 Notes:
 
