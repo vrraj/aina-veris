@@ -33,7 +33,10 @@ try:  # pragma: no cover - exercised implicitly by the guard below
     from docling.datamodel.pipeline_options import (
         AcceleratorOptions,
         PdfPipelineOptions,
+        PictureDescriptionVlmOptions,
         TableFormerMode,
+        granite_picture_description,
+        smolvlm_picture_description,
     )
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling_core.types.doc import (
@@ -218,11 +221,28 @@ def _normalize_device(device: Any) -> str:
     return "auto"
 
 
+# Presets for the picture-description enrichment VLM. "smolvlm" is the
+# CPU-friendly default (256M params); "granite" (granite-vision-3.3-2b) is
+# heavier but better on dense technical figures.
+_PICTURE_DESCRIPTION_PRESETS = {
+    "smolvlm": "smolvlm_picture_description",
+    "granite": "granite_picture_description",
+}
+
+_PICTURE_DESCRIPTION_PROMPT = (
+    "Describe this technical figure or diagram: what it depicts, the key "
+    "components and their relationships, axes, and any values or labels "
+    "shown. Be concise."
+)
+
+
 def _build_converter(
     do_ocr: bool,
     table_mode: str,
     accelerator_device: str,
     num_threads: int,
+    picture_description: bool = False,
+    picture_description_model: str = "smolvlm",
 ) -> "DocumentConverter":
     options = PdfPipelineOptions()
     options.do_ocr = bool(do_ocr)
@@ -234,6 +254,18 @@ def _build_converter(
         num_threads=max(1, int(num_threads)),
         device=_normalize_device(accelerator_device),
     )
+    if picture_description:
+        preset_name = _PICTURE_DESCRIPTION_PRESETS.get(
+            str(picture_description_model or "").strip().lower(),
+            "smolvlm_picture_description",
+        )
+        preset = globals()[preset_name]
+        options.do_picture_description = True
+        options.generate_picture_images = True
+        options.picture_description_options = PictureDescriptionVlmOptions(
+            repo_id=preset.repo_id,
+            prompt=_PICTURE_DESCRIPTION_PROMPT,
+        )
     return DocumentConverter(
         format_options={"pdf": PdfFormatOption(pipeline_options=options)}
     )
@@ -244,12 +276,16 @@ def _get_converter(
     table_mode: str,
     accelerator_device: str,
     num_threads: int,
+    picture_description: bool = False,
+    picture_description_model: str = "smolvlm",
 ) -> "DocumentConverter":
     key = (
         bool(do_ocr),
         str(table_mode),
         _normalize_device(accelerator_device),
         max(1, int(num_threads)),
+        bool(picture_description),
+        str(picture_description_model or "smolvlm"),
     )
     if key not in _CONVERTER_CACHE:
         _CONVERTER_CACHE[key] = _build_converter(*key)
@@ -275,6 +311,8 @@ def prewarm_models() -> bool:
             str(getattr(app_settings, "pdf_docling_table_mode", "accurate")),
             str(getattr(app_settings, "pdf_docling_accelerator_device", "auto")),
             int(getattr(app_settings, "pdf_docling_num_threads", 4)),
+            bool(getattr(app_settings, "pdf_docling_picture_description", False)),
+            str(getattr(app_settings, "pdf_docling_picture_description_model", "smolvlm")),
         )
         logger.info("Docling warm-up complete: models ready")
         return True
@@ -286,6 +324,30 @@ def prewarm_models() -> bool:
 # ---------------------------------------------------------------------------
 # Box normalization
 # ---------------------------------------------------------------------------
+
+def _picture_description_text(item: Any) -> str:
+    """Extract VLM-generated descriptions from a picture item.
+
+    Newer docling-core versions write the captioning VLM's output to
+    ``item.meta.description.text`` (``DescriptionMetaField``); older ones
+    attached ``DescriptionAnnotation`` entries (kind="description") to
+    ``item.annotations``. The text becomes the chunk's verbatim_text so
+    figures are searchable as prose captions.
+    """
+    texts: List[str] = []
+    description = getattr(getattr(item, "meta", None), "description", None)
+    text = str(getattr(description, "text", "") or "").strip()
+    if text:
+        texts.append(text)
+    for annotation in getattr(item, "annotations", None) or []:
+        kind = str(getattr(annotation, "kind", "") or "")
+        if kind and kind != "description":
+            continue
+        text = str(getattr(annotation, "text", "") or "").strip()
+        if text:
+            texts.append(text)
+    return " ".join(texts)
+
 
 def _normalize_bbox(
     bbox: "BoundingBox",
@@ -525,7 +587,7 @@ def _walk_document(doc: "DoclingDocument", pages: Dict[int, Dict[str, float]]) -
             ext = ExtractedItem(
                 item_ref=str(item_ref),
                 kind="picture",
-                verbatim_text="",
+                verbatim_text=_picture_description_text(item),
                 section_path=[s for _, s in section_stack],
             )
         else:
@@ -568,6 +630,8 @@ def extract_pdf_document(
     table_mode: Optional[str] = None,
     accelerator_device: Optional[str] = None,
     num_threads: Optional[int] = None,
+    picture_description: Optional[bool] = None,
+    picture_description_model: Optional[str] = None,
 ) -> DoclingExtraction:
     """Convert PDF bytes with Docling and build the typed extraction artifact.
 
@@ -595,8 +659,23 @@ def extract_pdf_document(
         accelerator_device = str(getattr(app_settings, "pdf_docling_accelerator_device", "auto"))
     if num_threads is None:
         num_threads = int(getattr(app_settings, "pdf_docling_num_threads", 4))
+    if picture_description is None:
+        picture_description = bool(
+            getattr(app_settings, "pdf_docling_picture_description", False)
+        )
+    if picture_description_model is None:
+        picture_description_model = str(
+            getattr(app_settings, "pdf_docling_picture_description_model", "smolvlm")
+        )
 
-    converter = _get_converter(do_ocr, table_mode, accelerator_device, num_threads)
+    converter = _get_converter(
+        do_ocr,
+        table_mode,
+        accelerator_device,
+        num_threads,
+        picture_description,
+        picture_description_model,
+    )
     document_id = compute_document_id(pdf_bytes)
     filename = "document.pdf"
     try:

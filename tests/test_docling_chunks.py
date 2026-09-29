@@ -160,3 +160,49 @@ class TestChunkPlanShape:
             assert d["representation_type"] == chunk.representation_type
             assert d["section_path"] == chunk.section_path
             assert d["item_refs"] == chunk.item_refs
+
+
+class TestPictureCaptionChunks:
+    def _picture_item(self, text):
+        from backend.extractor.docling_pdf_extractor import (
+            ExtractedItem,
+            SourceRegion,
+        )
+        return ExtractedItem(
+            item_ref="#/pictures/0",
+            kind="picture",
+            verbatim_text=text,
+            section_path=["Electrical Characteristics"],
+            page_index=0,
+            page_number=1,
+            regions=[
+                SourceRegion(
+                    page_index=0,
+                    page_number=1,
+                    bbox_norm=[0.1, 0.2, 0.9, 0.6],
+                    item_ref="#/pictures/0",
+                )
+            ],
+            highlight_status="available",
+        )
+
+    def test_picture_with_description_yields_caption_chunk(self):
+        extraction = build_extraction()
+        extraction.items.append(
+            self._picture_item("Frequency stability vs temperature curve")
+        )
+        plan = build_chunks(extraction)
+        caps = [c for c in plan.chunks if c.block_type == "caption"]
+        assert len(caps) == 1
+        cap = caps[0]
+        assert "Frequency stability" in cap.display_text
+        assert cap.item_refs == ["#/pictures/0"]
+        assert cap.page_numbers == [1]
+        assert cap.regions[0]["page_number"] == 1
+        assert cap.regions[0]["bbox_norm"] == [0.1, 0.2, 0.9, 0.6]
+
+    def test_picture_without_text_still_skipped(self):
+        extraction = build_extraction()
+        extraction.items.append(self._picture_item(""))
+        plan = build_chunks(extraction)
+        assert not [c for c in plan.chunks if c.block_type == "caption"]

@@ -210,8 +210,17 @@ configured vectors, and store them in the selected domain collection.
 |---|---|---|
 | URL or HTML | `POST /index` | Index a web page or fetched document. |
 | Uploaded PDF | `POST /pdf` | Parse and index a PDF. |
+| Complex PDF (datasheets) | `POST /index-pdf-docling` | Docling pipeline with layout analysis, TableFormer tables, and per-item provenance into a dedicated `*_docling_v1` collection. |
 | MediaWiki page | `POST /mediawiki/url` | Retrieve and index a MediaWiki article. |
 | Supplied document | `POST /embed` | Index content provided directly by an application. |
+
+The Docling path runs on CPU by default (`PDF_DOCLING_ACCELERATOR_DEVICE`,
+`PDF_DOCLING_NUM_THREADS` control device/threads; GPU needs the CUDA PyTorch
+build). An opt-in picture-description stage
+(`PDF_DOCLING_PICTURE_DESCRIPTION`) sends detected figures to a captioning
+VLM so diagrams are searchable. See
+[docs/pdf-docling-pipeline.md](docs/pdf-docling-pipeline.md) for the full
+configuration table.
 
 ### Batch ingestion
 

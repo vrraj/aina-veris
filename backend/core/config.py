@@ -619,6 +619,12 @@ class Settings(BaseSettings):
     # PyTorch install (requirements-cpu.txt) for the smallest footprint.
     pdf_docling_accelerator_device: str = "auto"
     pdf_docling_num_threads: int = 4  # CPU threads for Docling model inference
+    # Send detected picture regions through a captioning VLM so figures get
+    # searchable text (indexed as caption chunks). Adds a model download and
+    # per-figure inference cost at index time.
+    pdf_docling_picture_description: bool = False
+    # "smolvlm" (256M, CPU-friendly) or "granite" (granite-vision-3.3-2b).
+    pdf_docling_picture_description_model: str = "smolvlm"
 
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100

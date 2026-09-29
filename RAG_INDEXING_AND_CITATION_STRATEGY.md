@@ -49,10 +49,13 @@ Notes:
   (`*_docling_v1`) and never touches legacy collections.
 - Docling persists both an extraction artifact (JSON with full provenance)
   and the raw PDF beside it, which powers served citations later.
-- **Future options** (deferred): Docling picture-description enrichment
-  (VLM figure captions) for image-heavy docs, and ColPali-style visual
-  retrieval over page images. The payload/`regions` plumbing already
-  supports both.
+- **Opt-in figure enrichment**: `PDF_DOCLING_PICTURE_DESCRIPTION` sends each
+  detected picture region to a captioning VLM (SmolVLM-256M default,
+  granite-vision-3.3-2b optional); the generated text becomes searchable
+  caption chunks with the figure's provenance intact. Off by default —
+  it adds a model download and per-figure inference at index time.
+- **Future option** (deferred): ColPali-style visual retrieval over page
+  images. The payload/`regions` plumbing already supports it.
 
 ## 2. Indexing and metadata
 

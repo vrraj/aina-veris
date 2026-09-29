@@ -166,6 +166,25 @@ Settings (see `.env.example`):
 | `PDF_DOCLING_TABLE_MODE` | `accurate` | Docling TableFormer mode (`fast` or `accurate`). |
 | `PDF_DOCLING_ACCELERATOR_DEVICE` | `auto` | Inference device: `auto`, `cpu`, `mps`, `cuda`, `cuda:N`, `xpu`. |
 | `PDF_DOCLING_NUM_THREADS` | `4` | CPU threads for Docling model inference. |
+| `PDF_DOCLING_PICTURE_DESCRIPTION` | `false` | Send detected picture regions to a captioning VLM so figure content is indexed as searchable caption chunks. |
+| `PDF_DOCLING_PICTURE_DESCRIPTION_MODEL` | `smolvlm` | Captioning VLM preset: `smolvlm` (SmolVLM-256M, CPU-friendly) or `granite` (granite-vision-3.3-2b, heavier). |
+
+### Picture description behavior
+
+When enabled, the standard pipeline stays in charge of layout and tables;
+the VLM only captions `picture` items. Notes:
+
+- Pictures under **5% of the page area** are skipped (Docling's
+  `picture_area_threshold`), which filters logos/icons but also small
+  figures.
+- Generated text lands in the picture's `verbatim_text` and is chunked as a
+  `caption` block carrying the figure's `item_refs`/`regions`, so citations
+  still deep-link to the exact figure box.
+- **CPU cost is real**: ~10+ min per full-page figure on container CPU
+  (SmolVLM, scale 2.0, 200-token cap). A picture-heavy datasheet can take
+  hours — prefer enabling on GPU (`cuda`/`mps`) or indexing selectively.
+- VLM text is a description, not extraction — do not rely on it for exact
+  numeric values in tables; TableFormer remains the authority there.
 
 ## CPU vs GPU
 
@@ -232,5 +251,7 @@ and set `PDF_DOCLING_ACCELERATOR_DEVICE=auto` or `cuda`.
 - Retrieval currently targets the new collection directly. Hybrid dense +
   sparse fusion tuning (spec stage 4) is deferred follow-up work tracked in
   `PDF_DOCLING_TASKS.md`.
-- VLM figure descriptions and ColPali visual retrieval (spec stages 6–7)
-  are optional later experiments.
+- VLM figure descriptions are implemented but off by default
+  (`PDF_DOCLING_PICTURE_DESCRIPTION`); validate against the retrieval eval
+  harness before enabling broadly. ColPali visual retrieval remains a later
+  experiment.

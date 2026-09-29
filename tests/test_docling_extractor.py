@@ -319,3 +319,40 @@ class TestEndToEndConversion:
         assert table.highlight_status == "available"
         assert table.regions[0].page_number == 1
         assert all(0.0 <= v <= 1.0 for v in table.regions[0].bbox_norm)
+
+
+def test_picture_description_text_from_annotations():
+    """VLM description annotations on a picture item become verbatim_text."""
+    from types import SimpleNamespace
+    from backend.extractor.docling_pdf_extractor import _picture_description_text
+
+    item = SimpleNamespace(
+        annotations=[
+            SimpleNamespace(kind="description", text="Block diagram of the oscillator"),
+            SimpleNamespace(kind="classification", text="ignored"),
+            SimpleNamespace(kind="description", text="  "),
+        ]
+    )
+    assert _picture_description_text(item) == "Block diagram of the oscillator"
+
+
+def test_picture_description_text_empty_without_annotations():
+    from types import SimpleNamespace
+    from backend.extractor.docling_pdf_extractor import _picture_description_text
+
+    assert _picture_description_text(SimpleNamespace(annotations=None)) == ""
+    assert _picture_description_text(SimpleNamespace()) == ""
+
+
+def test_picture_description_text_from_meta():
+    """Newer docling-core: VLM output lands in item.meta.description.text."""
+    from types import SimpleNamespace
+    from backend.extractor.docling_pdf_extractor import _picture_description_text
+
+    item = SimpleNamespace(
+        meta=SimpleNamespace(
+            description=SimpleNamespace(text="Timing diagram of the output driver")
+        ),
+        annotations=[],
+    )
+    assert _picture_description_text(item) == "Timing diagram of the output driver"
