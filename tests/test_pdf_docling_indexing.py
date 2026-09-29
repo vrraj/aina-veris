@@ -57,9 +57,16 @@ class _FakeQdrantClient:
 class _FakeQdrantDB:
     def __init__(self):
         self.client = _FakeQdrantClient()
+        self.sparse_batch_calls = 0
+        self.sparse_single_calls = 0
 
     def generate_sparse_embeddings(self, text):
+        self.sparse_single_calls += 1
         return {"indices": [1, 2], "values": [0.5, 0.5]}
+
+    def generate_sparse_embeddings_batch(self, texts):
+        self.sparse_batch_calls += 1
+        return [{"indices": [1, 2], "values": [0.5, 0.5]} for _ in texts]
 
 
 def _patch_stack(monkeypatch, fail_upsert=False, existing_ids=None):
@@ -205,6 +212,51 @@ class TestTransactionalSwap:
             )
         assert fake.client.upserted == []
         assert fake.client.deleted == []  # nothing retired on failure
+
+    def test_sparse_embeddings_batched_per_batch(self, monkeypatch):
+        import math
+        _, plan = _plan_chunks()
+        fake = _patch_stack(monkeypatch)  # fake_spec batch_size = 4
+        svc.index_docling_chunks(
+            plan.chunks,
+            active_domain=None,
+            source_key="https://example.com/lm358.pdf",
+            source="https://example.com/lm358.pdf",
+        )
+        assert fake.sparse_batch_calls == math.ceil(len(plan.chunks) / 4)
+        assert fake.sparse_single_calls == 0
+
+    def test_sparse_batch_failure_falls_back_per_chunk(self, monkeypatch):
+        _, plan = _plan_chunks()
+        fake = _patch_stack(monkeypatch)
+        monkeypatch.setattr(
+            fake, "generate_sparse_embeddings_batch",
+            lambda texts: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        svc.index_docling_chunks(
+            plan.chunks,
+            active_domain=None,
+            source_key="https://example.com/lm358.pdf",
+            source="https://example.com/lm358.pdf",
+        )
+        assert fake.sparse_single_calls == len(plan.chunks)
+
+    def test_cancel_event_stops_before_writes(self, monkeypatch):
+        import threading
+        _, plan = _plan_chunks()
+        fake = _patch_stack(monkeypatch)
+        cancel = threading.Event()
+        cancel.set()
+        with pytest.raises(svc.DoclingCancelled):
+            svc.index_docling_chunks(
+                plan.chunks,
+                active_domain=None,
+                source_key="https://example.com/lm358.pdf",
+                source="https://example.com/lm358.pdf",
+                cancel_event=cancel,
+            )
+        assert fake.client.upserted == []
+        assert fake.client.deleted == []
 
     def test_empty_chunks_write_nothing(self, monkeypatch):
         fake = _patch_stack(monkeypatch)

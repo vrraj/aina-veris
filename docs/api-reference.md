@@ -13,7 +13,7 @@ points for applications.
 | Search | `POST /search` | Direct retrieval without answer generation. |
 | Ingestion | `POST /index`, `/pdf`, `/mediawiki/url`, `/embed` | Source-specific ingestion into a selected domain. |
 | Docling PDF ingestion | `POST /index-pdf-docling` | Additive technical-PDF pipeline with table structure and citation regions; see [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md). |
-| Docling PDF ingestion (stream) | `POST /index-pdf-docling/stream` | Same pipeline over SSE: `event: stage` frames (model loading, extraction, indexing) then a final `event: result` payload. |
+| Docling PDF ingestion (stream) | `POST /index-pdf-docling/stream` | Same pipeline over SSE: `event: stage` frames (model loading, extraction, indexing) plus elapsed-time heartbeat stage frames during long steps, then a final `event: result` payload. |
 | Retrieval evaluation | `POST /retrieval-evals/run` | Inspect retrieval and reranking independently. |
 | Stage stream | `GET /chat/stream/stages?query_id=...` | SSE progress, metrics, and keepalives. |
 | A2A | `/agents/<agent-name>/` | Fixed-domain JSON-RPC research tasks. |

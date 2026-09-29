@@ -10,11 +10,13 @@ from fastapi.responses import FileResponse, StreamingResponse
 import json
 import queue
 import threading
+import time
 
 from backend.api.security import enforce_origin_host
 from backend.core.config import settings
 from backend.core.schemas import PDFDoclingInput
 from backend.extractor.docling_pdf_extractor import source_pdf_path
+from backend.services.pdf_docling_indexing import DoclingCancelled
 from backend.services.pdf_docling_service import (
     DoclingPipelineError,
     index_pdf_docling as run_docling_indexing,
@@ -61,22 +63,40 @@ async def index_pdf_docling_stream(pdf_input: PDFDoclingInput, request: Request)
     frames as the pipeline progresses (e.g. "Loading model: ..." on a cold
     converter build, extraction, indexing), then a final `event: result`
     carrying the same JSON body as the plain endpoint, or `event: error`.
-    The plain endpoint is unchanged for non-streaming clients.
+    During long silent steps (Docling convert on CPU can take minutes) an
+    `event: stage` heartbeat re-emits the last stage with elapsed seconds so
+    the client can show the request is still alive. If the client disconnects,
+    a cooperative cancel event is set and the worker raises at the next stage
+    boundary (emitted as `event: cancelled`); Docling conversion itself cannot
+    be interrupted mid-call, so a disconnect during convert takes effect once
+    it returns. The plain endpoint is unchanged for non-streaming clients.
     """
     if not bool(getattr(settings, "pdf_docling_enabled", True)):
         raise HTTPException(status_code=503, detail="Docling PDF pipeline is disabled")
 
     enforce_origin_host(request)
 
+    HEARTBEAT_SECONDS = 15
+
     def event_stream():
         events: "queue.Queue" = queue.Queue()
+        cancel = threading.Event()
+        started = time.monotonic()
+        events.put(("stage", {
+            "message": "Docling extraction - layout, table structure, and "
+                       "figure stages can take a few minutes on CPU.",
+        }))
 
         def progress(message: str) -> None:
             events.put(("stage", {"message": message}))
 
         def run() -> None:
             try:
-                events.put(("result", run_docling_indexing(pdf_input, progress)))
+                events.put(("result", run_docling_indexing(
+                    pdf_input, progress, cancel_event=cancel
+                )))
+            except DoclingCancelled:
+                events.put(("cancelled", {"detail": "Indexing cancelled"}))
             except DoclingPipelineError as exc:
                 events.put(("error", {"detail": str(exc)}))
             except Exception as exc:
@@ -85,12 +105,28 @@ async def index_pdf_docling_stream(pdf_input: PDFDoclingInput, request: Request)
                 events.put(None)  # sentinel
 
         threading.Thread(target=run, daemon=True).start()
-        while True:
-            item = events.get()
-            if item is None:
-                break
-            event, payload = item
-            yield f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+        last_stage = ""
+        try:
+            while True:
+                try:
+                    item = events.get(timeout=HEARTBEAT_SECONDS)
+                except queue.Empty:
+                    elapsed = int(time.monotonic() - started)
+                    detail = last_stage or "Still processing"
+                    payload = {"message": f"{detail} ({elapsed}s elapsed)"}
+                    yield f"event: stage\ndata: {json.dumps(payload)}\n\n"
+                    continue
+                if item is None:
+                    break
+                event, payload = item
+                if event == "stage":
+                    last_stage = payload.get("message", last_stage)
+                yield f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+        finally:
+            # On client disconnect this generator is closed, which lands here
+            # and stops the worker at its next stage checkpoint. On normal
+            # completion the worker already finished, so this is a no-op.
+            cancel.set()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

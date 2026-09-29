@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 from typing import Any, Dict, Optional
 
 import httpx
@@ -28,6 +29,7 @@ from backend.extractor.docling_pdf_extractor import (
 from backend.services.pdf_docling_indexing import (
     count_docling_points_for_document,
     index_docling_chunks,
+    raise_if_cancelled,
     resolve_docling_collection_name,
 )
 from backend.services.domain_shards import (
@@ -81,33 +83,45 @@ def _resolve_source(pdf_input) -> Dict[str, Any]:
     return {"pdf_bytes": pdf_bytes, "source": source}
 
 
-def index_pdf_docling(pdf_input, progress=None) -> Dict[str, Any]:
+def index_pdf_docling(pdf_input, progress=None, cancel_event=None) -> Dict[str, Any]:
     """Run the Docling pipeline: extract -> artifact -> chunks -> index.
 
     Returns a JSON-serializable result dict. `estimate` performs extraction
     and chunk planning only — no Qdrant writes, no artifact writes.
     `progress` is an optional callable invoked with human-readable stage
     messages (model loading, extraction, indexing) so callers can stream
-    them to the UI.
+    them to the UI. `cancel_event` is an optional threading.Event checked at
+    stage boundaries; setting it raises DoclingCancelled before the next
+    stage (Docling conversion itself cannot be interrupted mid-call).
     """
+    started = time.monotonic()
+
     if not bool(getattr(settings, "pdf_docling_enabled", True)):
         raise DoclingPipelineError("Docling PDF pipeline is disabled (pdf_docling_enabled=false)")
 
     resolved = _resolve_source(pdf_input)
     pdf_bytes, source = resolved["pdf_bytes"], resolved["source"]
 
-    try:
-        extraction = extract_pdf_document(pdf_bytes, source, progress=progress)
-    except DoclingUnavailableError as exc:
-        raise DoclingPipelineError(str(exc)) from exc
-    except DoclingConversionError as exc:
-        raise DoclingPipelineError(str(exc)) from exc
+    # document_id is a content hash of the PDF bytes, so the collection can
+    # be checked for an existing copy before paying for docling conversion.
+    document_id = compute_document_id(pdf_bytes)
 
-    # Duplicate check scoped to this pipeline's points only (never legacy).
+    # Duplicate check scoped to this pipeline's points only (never legacy),
+    # plus the exclusive-write cross-shard check. Both run before conversion:
+    # a document may live in only one shard of a domain, so if it exists in
+    # another shard (e.g. legacy /pdf), refuse unless force_delete is set, in
+    # which case index here and delete the other shard's points after a
+    # successful upsert.
+    other_shards: Dict[str, int] = {}
     if bool(getattr(settings, "check_document_indexed", True)) and not pdf_input.estimate:
+        if progress is not None:
+            try:
+                progress("Checking Qdrant for an existing copy of this document...")
+            except Exception:
+                logger.debug("progress callback failed", exc_info=True)
         try:
             existing = count_docling_points_for_document(
-                pdf_input.active_domain, extraction.document_id
+                pdf_input.active_domain, document_id
             )
         except Exception as exc:
             logger.warning("Docling duplicate check failed for %s: %s", source, exc)
@@ -117,19 +131,12 @@ def index_pdf_docling(pdf_input, progress=None) -> Dict[str, Any]:
                 "message": "Document already indexed in the Docling pipeline",
                 "pipeline": "pdf_docling_v1",
                 "source": source,
-                "document_id": extraction.document_id,
+                "document_id": document_id,
                 "already_indexed": True,
                 "vectors_found": int(existing),
                 "confirmation_required": True,
                 "hint": "Resubmit with force_delete=true to re-index this document",
             }
-
-    # Exclusive write: a document may live in only one shard of a domain.
-    # If it exists in another shard (e.g. legacy /pdf), refuse unless
-    # force_delete is set, in which case index here and delete the other
-    # shard's points after a successful upsert.
-    other_shards: Dict[str, int] = {}
-    if bool(getattr(settings, "check_document_indexed", True)) and not pdf_input.estimate:
         try:
             other_shards = count_document_in_shards(
                 pdf_input.active_domain,
@@ -143,13 +150,26 @@ def index_pdf_docling(pdf_input, progress=None) -> Dict[str, Any]:
                 "message": "Document already indexed via a different pipeline",
                 "pipeline": "pdf_docling_v1",
                 "source": source,
-                "document_id": extraction.document_id,
+                "document_id": document_id,
                 "already_indexed": True,
                 "existing_collection": ", ".join(sorted(other_shards)),
                 "vectors_found": int(sum(other_shards.values())),
                 "confirmation_required": True,
                 "hint": "Resubmit with force_delete=true to migrate this document to the Docling pipeline",
             }
+
+    raise_if_cancelled(cancel_event)
+
+    try:
+        extraction = extract_pdf_document(pdf_bytes, source, progress=progress)
+    except DoclingUnavailableError as exc:
+        raise DoclingPipelineError(str(exc)) from exc
+    except DoclingConversionError as exc:
+        raise DoclingPipelineError(str(exc)) from exc
+
+    # Conversion can't be interrupted mid-call, so a disconnect during it is
+    # honoured here — before chunking, artifact writes and indexing.
+    raise_if_cancelled(cancel_event)
 
     plan = build_chunks(
         extraction,
@@ -207,6 +227,8 @@ def index_pdf_docling(pdf_input, progress=None) -> Dict[str, Any]:
         source=source,
         artifact_uri=artifact_uri,
         max_chunks=pdf_input.max_chunks or None,
+        progress=progress,
+        cancel_event=cancel_event,
     )
 
     migrated_from: Dict[str, int] = {}
@@ -249,4 +271,5 @@ def index_pdf_docling(pdf_input, progress=None) -> Dict[str, Any]:
         "parsing_warnings": extraction.warnings,
         "provenance_coverage": round(provenance_coverage, 4),
         "artifact_uri": artifact_uri,
+        "duration_seconds": round(time.monotonic() - started, 2),
     }

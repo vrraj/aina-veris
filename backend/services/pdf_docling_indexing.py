@@ -18,6 +18,7 @@ A failed conversion or upsert leaves the previous searchable version intact.
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Set
 
@@ -210,6 +211,23 @@ def _existing_point_ids(qdrant: QdrantDB, collection_name: str, domain: str, doc
     return ids
 
 
+class DoclingCancelled(RuntimeError):
+    """Raised when a Docling indexing run is cancelled (e.g. client disconnect)."""
+
+
+def raise_if_cancelled(cancel_event) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise DoclingCancelled("Indexing cancelled")
+
+
+def _report(progress, message: str) -> None:
+    if progress is not None:
+        try:
+            progress(message)
+        except Exception:
+            logger.debug("progress callback failed", exc_info=True)
+
+
 def index_docling_chunks(
     chunks: Sequence[DoclingChunk],
     *,
@@ -218,6 +236,8 @@ def index_docling_chunks(
     source: str,
     artifact_uri: Optional[str] = None,
     max_chunks: Optional[int] = None,
+    progress=None,
+    cancel_event=None,
 ) -> Dict[str, Any]:
     """Embed and upsert Docling chunks into the dedicated collection.
 
@@ -264,11 +284,29 @@ def index_docling_chunks(
     # previous version fully intact.
     points = []
     tokens_used = 0
-    for batch_start in range(0, len(chunk_list), batch_size):
+    total = len(chunk_list)
+    embed_started = time.monotonic()
+    _report(progress, f"Embedding {total} chunks (dense + sparse)...")
+    logger.info(
+        "Docling indexing: embedding %d chunks for %s (batch_size=%d)",
+        total, source_key, batch_size,
+    )
+    for batch_start in range(0, total, batch_size):
+        raise_if_cancelled(cancel_event)
         batch = chunk_list[batch_start : batch_start + batch_size]
-        embeddings = generate_embeddings_with_retrieval(
-            [c.embedding_text for c in batch], active_domain
-        )
+        batch_texts = [c.embedding_text for c in batch]
+        embeddings = generate_embeddings_with_retrieval(batch_texts, active_domain)
+
+        sparse_dicts: List[Optional[Dict[str, List[float]]]] = [None] * len(batch)
+        if has_sparse_vector:
+            try:
+                sparse_dicts = list(qdrant.generate_sparse_embeddings_batch(batch_texts))
+            except Exception:
+                logger.warning(
+                    "Batch sparse embedding failed; falling back to per-chunk calls",
+                    exc_info=True,
+                )
+
         for offset_in_batch, chunk in enumerate(batch):
             embedding = embeddings[offset_in_batch]
             payload = build_docling_payload(
@@ -284,14 +322,17 @@ def index_docling_chunks(
 
             vector_payload: Any
             if has_sparse_vector:
-                try:
-                    sparse_emb = qdrant.generate_sparse_embeddings(chunk.embedding_text)
-                    sparse_vector = models.SparseVector(
-                        indices=sparse_emb.get("indices") or [],
-                        values=sparse_emb.get("values") or [],
-                    )
-                except Exception:
-                    sparse_vector = models.SparseVector(indices=[], values=[])
+                sparse_emb = sparse_dicts[offset_in_batch]
+                if sparse_emb is None:
+                    try:
+                        sparse_emb = qdrant.generate_sparse_embeddings(chunk.embedding_text)
+                    except Exception:
+                        sparse_emb = None
+                sd = sparse_emb or {}
+                sparse_vector = models.SparseVector(
+                    indices=sd.get("indices") or [],
+                    values=sd.get("values") or [],
+                )
                 vector_payload = (
                     {"dense": embedding, "sparse": sparse_vector}
                     if has_named_dense_vector
@@ -314,6 +355,15 @@ def index_docling_chunks(
                 )
             )
 
+        embedded_so_far = batch_start + len(batch)
+        _report(progress, f"Embedded {embedded_so_far}/{total} chunks...")
+        logger.debug("Docling indexing: embedded %d/%d chunks", embedded_so_far, total)
+
+    logger.info(
+        "Docling indexing: embeddings ready in %.1fs; %d points staged",
+        time.monotonic() - embed_started, len(points),
+    )
+
     new_ids = {p.id for p in points}
 
     # Snapshot existing point IDs for this (domain, document_id, pipeline)
@@ -324,7 +374,17 @@ def index_docling_chunks(
         logger.warning("Could not list existing points for document swap; skipping stale cleanup")
         existing_ids = set()
 
+    # Last checkpoint before the write phase: once the upsert commits, stale
+    # cleanup always runs to completion so the collection stays consistent.
+    raise_if_cancelled(cancel_event)
+
+    _report(progress, f"Upserting {len(points)} points into {collection_name}...")
+    upsert_started = time.monotonic()
     qdrant.client.upsert(collection_name=collection_name, points=points)
+    logger.info(
+        "Docling indexing: upserted %d points into %s in %.1fs",
+        len(points), collection_name, time.monotonic() - upsert_started,
+    )
 
     stale_ids = existing_ids - new_ids
     deleted = 0
@@ -337,6 +397,12 @@ def index_docling_chunks(
             deleted = len(stale_ids)
         except Exception:
             logger.exception("Failed to retire stale points after upsert")
+
+    _report(progress, f"Indexed {len(points)} chunks into {collection_name}")
+    logger.info(
+        "Docling indexing: finished %d chunks into %s (stale_points_deleted=%d)",
+        len(points), collection_name, deleted,
+    )
 
     return {
         "collection_name": collection_name,

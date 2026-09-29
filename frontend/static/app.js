@@ -285,6 +285,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (pdfProgress) pdfProgress.textContent = payload.message || '';
                 } else if (event === 'result') {
                     result = payload;
+                } else if (event === 'cancelled') {
+                    throw new Error(payload.detail || 'Indexing cancelled');
                 } else if (event === 'error') {
                     throw new Error(payload.detail || 'Docling pipeline error');
                 }
@@ -428,10 +430,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const cost = (data.embedding_cost ?? 0);
                 const count = data.chunks_indexed ?? data.vectors_indexed ?? 0;
                 const countLabel = useDocling ? 'Chunks' : 'Vectors';
+                const elapsed = data.duration_seconds != null ? ` | ${Number(data.duration_seconds).toFixed(1)}s` : '';
                 if (pdfProgress) {
                     pdfProgress.innerHTML = `
                         <div class="font-semibold text-gray-900">
-                            Done. ${countLabel}: ${count} | Tokens: ${data.tokens_used ?? 0} | Cost: $${Number(cost).toFixed(6)}
+                            Done. ${countLabel}: ${count} | Tokens: ${data.tokens_used ?? 0} | Cost: $${Number(cost).toFixed(6)}${elapsed}
                         </div>
                     `;
                 }

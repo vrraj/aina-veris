@@ -133,13 +133,12 @@ class TestService:
             service_module.index_pdf_docling(PDFDoclingInput())
 
     def test_already_indexed_returns_confirmation(self, monkeypatch):
-        from docling_fixtures import build_extraction
-
-        extraction = build_extraction()
         monkeypatch.setattr(service_module, "_fetch_pdf", lambda url: b"pdf-bytes")
-        monkeypatch.setattr(
-            service_module, "extract_pdf_document", lambda b, s, **kw: extraction
-        )
+
+        def no_extract(*a, **k):
+            raise AssertionError("extraction must be skipped when already indexed")
+
+        monkeypatch.setattr(service_module, "extract_pdf_document", no_extract)
         monkeypatch.setattr(
             service_module, "count_docling_points_for_document", lambda d, doc: 7
         )
@@ -190,13 +189,14 @@ class TestService:
         assert result["chunks_indexed"] > 0
         assert result["pipeline"] == "pdf_docling_v1"
         assert "embedding_cost" in result
+        assert result["duration_seconds"] >= 0
         assert calls["source_key"] == "https://x/lm358.pdf"
         assert calls["artifact_uri"].startswith("internal://documents/")
 
 
 class TestStreamRoute:
     def test_stream_emits_stage_and_result_events(self, monkeypatch):
-        def fake_service(pi, progress=None):
+        def fake_service(pi, progress=None, cancel_event=None):
             if progress:
                 progress("Loading model: docling-layout-heron, TableFormer (accurate)")
                 progress("Extracting document (Docling layout analysis)...")
@@ -222,7 +222,7 @@ class TestStreamRoute:
         assert '"chunks_indexed": 3' in body
 
     def test_stream_maps_pipeline_error_to_error_event(self, monkeypatch):
-        def raise_pipeline(pi, progress=None):
+        def raise_pipeline(pi, progress=None, cancel_event=None):
             raise DoclingPipelineError("conversion failed")
 
         monkeypatch.setattr(endpoint_module, "run_docling_indexing", raise_pipeline)
@@ -240,3 +240,45 @@ class TestStreamRoute:
         assert "event: error" in body
         assert "conversion failed" in body
         assert "event: result" not in body
+
+    def test_stream_emits_cancelled_event(self, monkeypatch):
+        from backend.services.pdf_docling_indexing import DoclingCancelled
+
+        def raise_cancelled(pi, progress=None, cancel_event=None):
+            raise DoclingCancelled("Indexing cancelled")
+
+        monkeypatch.setattr(endpoint_module, "run_docling_indexing", raise_cancelled)
+        response = asyncio.run(
+            endpoint_module.index_pdf_docling_stream(_make_input(), _FakeRequest())
+        )
+
+        async def drain():
+            chunks = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+            return "".join(chunks)
+
+        body = asyncio.run(drain())
+        assert "event: cancelled" in body
+        assert "Indexing cancelled" in body
+        assert "event: result" not in body
+
+    def test_stream_disconnect_sets_cancel_event(self, monkeypatch):
+        received = {}
+
+        def fake_service(pi, progress=None, cancel_event=None):
+            received["cancel_event"] = cancel_event
+            return {"pipeline": "pdf_docling_v1", "chunks_indexed": 1}
+
+        monkeypatch.setattr(endpoint_module, "run_docling_indexing", fake_service)
+        response = asyncio.run(
+            endpoint_module.index_pdf_docling_stream(_make_input(), _FakeRequest())
+        )
+
+        async def drain():
+            async for _ in response.body_iterator:
+                pass
+
+        asyncio.run(drain())
+        assert received["cancel_event"] is not None
+        assert received["cancel_event"].is_set()  # generator cleanup set it

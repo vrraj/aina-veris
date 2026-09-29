@@ -451,49 +451,70 @@ class QdrantDB:
             self.last_embedding_usage = {"input_tokens": 0, "total_tokens": 0}
             raise
 
+    def _sparse_embedding_spec(self):
+        """EmbeddingSpec for the configured local sparse (SPLADE) model."""
+        from backend.retrieval.schemas import EmbeddingSpec
+        from backend.retrieval.config_loader import get_model_config, resolve_local_model_cache_dir
+
+        sparse_config = get_model_config("sparse")
+        sparse_model = sparse_config.get("name")
+        if not sparse_model:
+            raise ValueError("Sparse model name missing from retrieval config")
+
+        cache_dir = resolve_local_model_cache_dir(sparse_config)
+
+        return EmbeddingSpec(
+            task="embedding",
+            runtime="fastembed",
+            provider="local",
+            model=str(sparse_model),
+            dimensions=None,
+            normalize=False,
+            batch_size=32,
+            device=sparse_config.get("device"),
+            extra={"cache_dir": cache_dir} if cache_dir else {},
+            vector_type="sparse",
+        )
+
+    @staticmethod
+    def _sparse_vector_to_dict(sparse_vector) -> Dict[str, List[float]]:
+        if not isinstance(sparse_vector, dict):
+            return {"indices": [], "values": []}
+        return {
+            "indices": sparse_vector.get("indices") or [],
+            "values": sparse_vector.get("values") or [],
+        }
+
     def generate_sparse_embeddings(self, text: str) -> Dict[str, List[float]]:
         """Generate sparse query embeddings for hybrid retrieval."""
         try:
-            import os
             from backend.retrieval.embedding_router import EmbeddingRouter
-            from backend.retrieval.schemas import EmbeddingSpec
-            from backend.retrieval.config_loader import get_model_config, resolve_local_model_cache_dir
 
-            sparse_config = get_model_config("sparse")
-            sparse_model = sparse_config.get("name")
-            if not sparse_model:
-                raise ValueError("Sparse model name missing from retrieval config")
-
-            cache_dir = resolve_local_model_cache_dir(sparse_config)
-
-            spec = EmbeddingSpec(
-                task="embedding",
-                runtime="fastembed",
-                provider="local",
-                model=str(sparse_model),
-                dimensions=None,
-                normalize=False,
-                batch_size=32,
-                device=sparse_config.get("device"),
-                extra={"cache_dir": cache_dir} if cache_dir else {},
-                vector_type="sparse",
-            )
-
-            embedding_result = EmbeddingRouter().embed([text], spec)
+            embedding_result = EmbeddingRouter().embed([text], self._sparse_embedding_spec())
             vectors = embedding_result.vectors or []
             if not vectors:
                 return {"indices": [], "values": []}
-
-            sparse_vector = vectors[0]
-            if not isinstance(sparse_vector, dict):
-                return {"indices": [], "values": []}
-
-            return {
-                "indices": sparse_vector.get("indices") or [],
-                "values": sparse_vector.get("values") or [],
-            }
+            return self._sparse_vector_to_dict(vectors[0])
         except Exception as e:
             logger.exception("Error generating sparse embeddings: %s", e)
+            raise
+
+    def generate_sparse_embeddings_batch(self, texts: List[str]) -> List[Dict[str, List[float]]]:
+        """Generate sparse embeddings for a batch of texts in one model call.
+
+        Returns one {"indices", "values"} dict per input text, order-aligned;
+        missing results are padded with empty vectors.
+        """
+        try:
+            from backend.retrieval.embedding_router import EmbeddingRouter
+
+            embedding_result = EmbeddingRouter().embed(list(texts), self._sparse_embedding_spec())
+            vectors = embedding_result.vectors or []
+            out = [self._sparse_vector_to_dict(v) for v in vectors]
+            out.extend({"indices": [], "values": []} for _ in range(len(texts) - len(out)))
+            return out
+        except Exception as e:
+            logger.exception("Error generating batch sparse embeddings: %s", e)
             raise
             
     def search_similar(
