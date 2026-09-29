@@ -502,6 +502,7 @@ class Settings(BaseSettings):
     enable_tools: bool = True  # Enable agent-style tool calls (UI can override per-turn)
     max_tool_passes: int = 2  # Maximum number of tool loops to be called from LLM generated output for a single turn. This it to prevent runaway tool calls
     mcp_tools_refresh: int = 300  # TTL (seconds) for refreshing merged tool definitions (static + MCP)
+    mcp_tool_timeout_seconds: float = 30.0  # hard cap on external MCP tool calls; timed-out calls are cancelled
 
     # Tools that should receive document snippets (reranked context) as `existing_context`.
     # Most tools (e.g., get_weather, closest_airports) should NOT be listed here.
