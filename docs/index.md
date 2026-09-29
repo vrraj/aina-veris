@@ -251,8 +251,11 @@ overall conversation.
 
 <p align="center"><em>Source material is processed into domain-specific knowledge for the shared research runtime.</em></p>
 
-Domain configuration chooses the collection, embedding path, vector type, and
-retrieval policy. See [Domain configuration and ingestion](configuration.md).
+Domain configuration chooses the collection — or a shard set when the domain
+spans multiple ingestion pipelines — plus the embedding path, vector type, and
+retrieval policy. Search fans out across a domain's shards and merges results
+with reciprocal-rank fusion. See
+[Domain configuration and ingestion](configuration.md).
 
 The **Aina-Veris Web UI** is the operator workspace for administering and
 querying domain knowledge. It supports PDF, MediaWiki, HTML, and batch
@@ -290,8 +293,7 @@ configuration into the research runtime.
 ## Guides
 
 - Add a domain or ingest source material: [Configuration and ingestion](configuration.md)
-- Ingest technical PDFs (datasheets) with the Docling pipeline: [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md)
-- Indexing and citation strategy overview: [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md)
+- Ingest technical PDFs with the Docling pipeline, or span a domain across multiple pipeline shards: [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md)
 - Publish a domain as an agent: [A2A research agents](a2a.md)
 - Expose or consume MCP tools: [MCP integration](mcp_specs.md) · [Tool registry](tool_registry.md)
 - Call REST, follow SSE stages, or embed chat: [API surfaces](api-reference.md) · [SSE](server-sent-events.md) · [Embeddable chat](embedded-chat.md)

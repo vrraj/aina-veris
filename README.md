@@ -110,9 +110,10 @@ request is represented in the final grounded answer.
 
 ## Shared Runtime, Different Research Domains
 
-Each domain maintains its own **knowledge collection, embedding configuration,
-retrieval strategy, prompts, and model configuration** while using the same
-research pipeline and integration surfaces.
+Each domain maintains its own **knowledge base — one or more Qdrant collection
+shards — plus embedding configuration, retrieval strategy, prompts, and model
+configuration** while using the same research pipeline and integration
+surfaces.
 
 Aina-Veris research capabilities can be accessed through **A2A, MCP,
 REST/OpenAPI, the Web UI, and embeddable chat**.
@@ -134,7 +135,7 @@ individual pipeline stages**.
 
 Aina-Veris separates the interfaces used to invoke research from the runtime that executes it.
 
-- **Domain-isolated knowledge** — each domain can use its own Qdrant collection, embedding configuration, prompts, and retrieval policy.
+- **Domain-isolated knowledge** — each domain can use its own Qdrant collection or shard set, embedding configuration, prompts, and retrieval policy.
 - **Multiple integration surfaces** — A2A, MCP, REST, SSE, and embeddable chat use the shared research runtime.
 - **Balanced answers to multi-part questions** — optional query splitting and retrieval controls help prevent one part of a question from overshadowing the rest.
 - **Tool-assisted inference** — local tools, external MCP servers, and REST-backed capabilities can participate in research.
@@ -175,8 +176,8 @@ can use a faster path.
 Bring a domain's source material into Aina-Veris so agents and applications can
 retrieve it as cited evidence. Index individual PDFs, URLs, MediaWiki pages, or
 application-supplied documents; use batch ingestion to plan and process larger
-source sets. The domain configuration determines the collection, embedding
-path, and retrieval policy used once that knowledge base is queried.
+source sets. The domain configuration determines the collection shards,
+embedding path, and retrieval policy used once that knowledge base is queried.
 
 <p align="center">
   <img src="images/aina-veris-ingestion-pipeline.png" style="max-width: 100%; height: auto;" alt="Aina-Veris ingestion pipeline showing individual and batch source ingestion, metadata-preserving processing, domain-aware indexing, and Qdrant domain collections" />
@@ -192,9 +193,9 @@ registries**.
   source manifest after estimating chunks and cost.
 - **Evidence-preserving processing** — Retain source, document title, section,
   and document-type metadata while parsing and chunking content.
-- **Domain-aware indexing** — The domain configuration selects the collection,
-  embedding model, vector type, and retrieval path for the resulting knowledge
-  base.
+- **Domain-aware indexing** — The domain configuration selects the collection
+  shard, embedding model, vector type, and retrieval path for the resulting
+  knowledge base.
 
 <p align="center">
   <img src="images/aina-veris-content-ingestion.png" width="100%" alt="Aina-Veris Web UI showing domain-aware content ingestion, knowledge-base management, retrieval evaluation, and prompt, tool, and domain configuration registries" />
@@ -204,13 +205,13 @@ registries**.
 
 The ingestion endpoints accept different source shapes but feed one pipeline:
 parse the source, preserve useful metadata, chunk the content, create the
-configured vectors, and store them in the selected domain collection.
+configured vectors, and store them in the shard the ingestion pipeline owns.
 
 | Source | Endpoint | Use |
 |---|---|---|
 | URL or HTML | `POST /index` | Index a web page or fetched document. |
 | Uploaded PDF | `POST /pdf` | Parse and index a PDF. |
-| Complex PDF (datasheets) | `POST /index-pdf-docling` | Docling pipeline with layout analysis, TableFormer tables, and per-item provenance into a dedicated `*_docling_v1` collection. |
+| Complex PDF (datasheets) | `POST /index-pdf-docling` | Docling pipeline with layout analysis, TableFormer tables, and per-item provenance into a dedicated `*_docling_v1` shard — searched alongside the primary collection when declared in the domain's `collections` list. |
 | MediaWiki page | `POST /mediawiki/url` | Retrieve and index a MediaWiki article. |
 | Supplied document | `POST /embed` | Index content provided directly by an application. |
 
@@ -246,6 +247,28 @@ domains:
     collection_name: document_index_my_domain
     profile: local-hybrid
 ```
+
+**Multi-pipeline domains.** A domain can also span **multiple collection
+shards** — one per ingestion pipeline — so a corpus indexed through different
+extractors is searched as one knowledge base. Declare extra shards with
+`collections`; every existing shard is queried per its own vector layout and
+the candidates are merged with reciprocal-rank fusion:
+
+```yaml
+domains:
+  semiconductor_datasheets:
+    collection_name: document_index_semi_ds   # primary shard (e.g. /pdf)
+    profile: local-hybrid
+    collections:
+      - name: document_index_semi_ds_docling_v1
+        pipeline: docling
+```
+
+Indexing keeps each document in exactly one shard: re-ingesting a document
+through a different pipeline refuses unless `force_delete=true`, which migrates
+it. Declared shards are created lazily on first index. See
+[Domain shards](RAG_INDEXING_AND_CITATION_STRATEGY.md#domain-shards-multi-collection-domains)
+for the full rules.
 
 | `profile` | Expands to | When to use |
 |---|---|---|
