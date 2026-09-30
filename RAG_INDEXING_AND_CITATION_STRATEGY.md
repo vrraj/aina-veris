@@ -5,6 +5,7 @@ exact passage it came from. This is both the strategy map and the reference
 for the Docling ingestion path (endpoint, configuration, operational notes).
 
 ```mermaid
+%%{init: {"themeVariables": {"fontSize": "20px"}}}%%
 flowchart TB
     subgraph Ingest["Ingestion"]
         direction LR
