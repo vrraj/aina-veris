@@ -5,8 +5,9 @@ exact passage it came from. This is both the strategy map and the reference
 for the Docling ingestion path (endpoint, configuration, operational notes).
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph Ingest["Ingestion"]
+        direction LR
         PDF["Simple PDFs"] -->|"POST /pdf"| EXT1["pymupdf4llm<br>markdown extract"]
         HTML["HTML / MediaWiki"] --> EXT3["HTML / MediaWiki extractors<br>(heading-id anchors)"]
         DS["Datasheets / dense<br>technical PDFs"] -->|"POST /index-pdf-docling"| DOCPIPE
@@ -27,6 +28,7 @@ flowchart LR
     end
 
     subgraph Index["Indexing"]
+        direction LR
         EXT1 --> CHUNK["Structure-aware<br>chunker"]
         EXT3 --> CHUNK
         DOCPIPE -->|"extraction items"| CHUNK
@@ -39,6 +41,7 @@ flowchart LR
     end
 
     subgraph Retrieve["Retrieval & citations"]
+        direction LR
         QD -->|"hybrid dense+sparse<br>RRF fusion"| FUSE["fused hits"]
         FUSE -.->|"opt-in: use_colbert /<br>enable_cross_encoder_rerank"| RR["ColBERT v2 +<br>bge-reranker-base"]
         FUSE --> ANS
