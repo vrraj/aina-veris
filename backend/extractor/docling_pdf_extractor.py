@@ -20,7 +20,6 @@ import os
 import re
 import tempfile
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -211,8 +210,6 @@ class DoclingExtraction:
 _CONVERTER_CACHE_KEY = Tuple[bool, str, str, int, bool, str, float]
 _CONVERTER_CACHE: "TTLModelCache | None" = None
 _CONVERTER_CACHE_LOCK = threading.Lock()
-_SWEEPER_STARTED = False
-_SWEEP_INTERVAL_SECONDS = 60
 
 _VALID_ACCELERATOR_DEVICES = {"auto", "cpu", "mps", "cuda", "xpu"}
 
@@ -230,15 +227,14 @@ def _converter_idle_timeout() -> int:
 
 
 def _get_converter_cache() -> "TTLModelCache":
-    """Return the process-wide converter cache, starting its sweeper once.
+    """Return the process-wide converter cache.
 
     The Docling stack (layout, TableFormer, OCR, picture-description VLM)
-    is ingestion-only, so it can be evicted aggressively when idle. Unlike
-    the embedding caches, converters are rarely re-requested, so a
-    background thread sweeps the cache instead of relying on access-time
-    sweeps to actually release memory.
+    is ingestion-only, so it can be evicted aggressively when idle.
+    TTLModelCache's shared background sweeper releases memory even when no
+    requests arrive.
     """
-    global _CONVERTER_CACHE, _SWEEPER_STARTED
+    global _CONVERTER_CACHE
     with _CONVERTER_CACHE_LOCK:
         if _CONVERTER_CACHE is None:
             from backend.retrieval.model_cache import TTLModelCache
@@ -246,22 +242,7 @@ def _get_converter_cache() -> "TTLModelCache":
             _CONVERTER_CACHE = TTLModelCache(
                 idle_timeout=_converter_idle_timeout()
             )
-        if not _SWEEPER_STARTED:
-            _SWEEPER_STARTED = True
-            threading.Thread(
-                target=_sweep_converter_cache_forever,
-                name="docling-converter-cache-sweeper",
-                daemon=True,
-            ).start()
         return _CONVERTER_CACHE
-
-
-def _sweep_converter_cache_forever() -> None:
-    while True:
-        time.sleep(_SWEEP_INTERVAL_SECONDS)
-        cache = _CONVERTER_CACHE
-        if cache is not None:
-            cache.sweep()
 
 
 def _normalize_device(device: Any) -> str:

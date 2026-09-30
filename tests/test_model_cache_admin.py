@@ -50,6 +50,30 @@ class TestTTLModelCache:
         with pytest.raises(KeyError):
             cache2.reload("k")
 
+    def test_background_sweep_evicts_without_access(self):
+        """Idle models must be released by the shared sweeper even when no
+        get() ever runs again — otherwise they stay resident on a quiet
+        server indefinitely."""
+        import time
+        from backend.retrieval import model_cache
+
+        cache = TTLModelCache(idle_timeout=0.01)
+        cache.get("stale", lambda: object())
+        time.sleep(0.05)
+
+        assert "stale" in cache  # untouched — no get() since load
+        model_cache._sweep_registered_caches_once()
+        assert "stale" not in cache
+
+    def test_sweeper_thread_running(self):
+        import threading
+
+        TTLModelCache(idle_timeout=60)
+        assert any(
+            t.name == "ttl-model-cache-sweeper" and t.is_alive()
+            for t in threading.enumerate()
+        )
+
 
 class TestAdminService:
     def _patched(self, monkeypatch):

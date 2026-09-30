@@ -9,12 +9,50 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
 import time
+import weakref
 from typing import Any, Callable, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_IDLE_TIMEOUT = 300  # 5 minutes
+_SWEEP_INTERVAL_SECONDS = 60
+
+# Every live TTLModelCache, held weakly so caches themselves can be
+# garbage-collected. One daemon thread sweeps them all — eviction must not
+# depend on someone calling get(), or idle models would stay resident
+# indefinitely on a quiet server.
+_ALL_CACHES: "weakref.WeakSet[TTLModelCache]" = weakref.WeakSet()
+_SWEEPER_LOCK = threading.Lock()
+_SWEEPER_STARTED = False
+
+
+def _sweep_registered_caches_once() -> None:
+    for cache in list(_ALL_CACHES):
+        try:
+            cache.sweep()
+        except Exception:
+            logger.exception("Background model-cache sweep failed")
+
+
+def _sweep_registered_caches_forever() -> None:
+    while True:
+        time.sleep(_SWEEP_INTERVAL_SECONDS)
+        _sweep_registered_caches_once()
+
+
+def _ensure_sweeper() -> None:
+    global _SWEEPER_STARTED
+    with _SWEEPER_LOCK:
+        if _SWEEPER_STARTED:
+            return
+        _SWEEPER_STARTED = True
+    threading.Thread(
+        target=_sweep_registered_caches_forever,
+        name="ttl-model-cache-sweeper",
+        daemon=True,
+    ).start()
 
 
 class TTLModelCache:
@@ -22,13 +60,17 @@ class TTLModelCache:
 
     Each entry stores the model object alongside a last-access timestamp.
     On every ``get`` the timestamp is refreshed and a sweep evicts any
-    entries that have been idle past the timeout.
+    entries that have been idle past the timeout. A shared background
+    thread also sweeps every live cache periodically, so idle memory is
+    released even when no requests arrive.
     """
 
     def __init__(self, idle_timeout: int = DEFAULT_IDLE_TIMEOUT):
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._loaders: Dict[str, Callable[[], Any]] = {}
         self.idle_timeout = idle_timeout
+        _ALL_CACHES.add(self)
+        _ensure_sweeper()
 
     def __contains__(self, key) -> bool:
         return key in self._cache

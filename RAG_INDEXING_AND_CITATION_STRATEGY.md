@@ -102,10 +102,11 @@ the same Qdrant.
 **Model memory lifecycle.** Ingestion-only models (Docling layout,
 TableFormer, OCR, picture-description VLM) are never used at query time and
 are idle-evicted after `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` (default
-900 s; a background sweeper releases RAM between sporadic indexing runs).
-Embedding models (dense/sparse) serve queries and follow
-`MODEL_CACHE_IDLE_TTL_SECONDS` (default 300 s). Both settings accept `0`
-to keep models resident for the process lifetime. Rebuilding the Docling
+900 s). Embedding models (dense/sparse) serve queries and follow
+`MODEL_CACHE_IDLE_TTL_SECONDS` (default 300 s). One shared background
+sweeper covers every model cache, so idle memory is released even when no
+requests arrive; both settings accept `0` to keep models resident for the
+process lifetime. Rebuilding the Docling
 converter after eviction costs ~10–60 s of model loads on the next ingest.
 
 ## Domain shards (multi-collection domains)
