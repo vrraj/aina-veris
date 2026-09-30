@@ -41,6 +41,33 @@ SUP_UNI_RE = re.compile(r'^[\u00B9\u00B2\u00B3\u2070-\u2079]+$')  # ¹²³⁴⁵
 BRACKET_REF = re.compile(r'^\[(?:\d{1,3})(?:[\s,–-]+\d{1,3})*\]$')
 SHORT_DIGITS = re.compile(r'^\d{1,3}$')
 
+# Citation geometry: cap on per-chunk regions so a payload stays compact.
+MAX_REGIONS_PER_CHUNK = 40
+
+# Mirror of the quote/dash mapping in _normalize_text, shared with the
+# region matcher so both sides compare consistently.
+_QUOTE_MAP = {
+    "\u2019": "'", "\u2018": "'", "\u201C": '"', "\u201D": '"',
+    "\u2013": "-", "\u2014": "-",
+}
+
+
+def _norm_bbox(bbox, page_width, page_height):
+    """Normalize a fitz bbox (PDF points, top-left origin) to [0,1]
+    fractions of page width/height — same convention as the Docling path."""
+    if not bbox or len(bbox) != 4 or not page_width or not page_height:
+        return None
+    try:
+        x0, y0, x1, y1 = (float(v) for v in bbox)
+    except (TypeError, ValueError):
+        return None
+    return [
+        max(0.0, x0 / page_width),
+        max(0.0, y0 / page_height),
+        min(1.0, x1 / page_width),
+        min(1.0, y1 / page_height),
+    ]
+
 # --- Infobox extraction helpers (generic) ---
 #
 # We intentionally avoid a fixed list of labels.
@@ -394,16 +421,21 @@ class PDFExtractor:
             logger.exception("PDF: fetch failed for %s: %s", url, e)
             raise
 
-    def _read_pages_pymupdf(self, pdf_bytes: bytes) -> Tuple[Optional[str], List[Tuple[int, List[Dict]]], List[str], List[str]]:
+    def _read_pages_pymupdf(self, pdf_bytes: bytes) -> Tuple[Optional[str], List[Tuple[int, List[Dict]]], List[str], List[str], Dict[int, Tuple[float, float]]]:
+        """Read text lines per page. Each line dict carries ``bbox_norm``
+        (normalized [x0, y0, x1, y1]) so emitted chunks can cite geometry."""
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         title = doc.metadata.get("title") if doc.metadata else None
         #logger.debug("PDF: opened via PyMuPDF pages=%d title=%s", len(doc), title)
         pages = []
+        page_dims: Dict[int, Tuple[float, float]] = {}
         for i, page in enumerate(doc):
             if settings.debug_verbose:
                 logger.debug("PDF: processing page %d", i + 1)
             blocks = page.get_text("dict").get("blocks", [])
             page_width = page.rect.width if page.rect is not None else 0.0
+            page_height = page.rect.height if page.rect is not None else 0.0
+            page_dims[i + 1] = (float(page_width or 0.0), float(page_height or 0.0))
 
             # Detect candidate infobox blocks on the first page based on geometry.
             infobox_block_idxs = set()
@@ -458,7 +490,13 @@ class PDFExtractor:
                     max_size = max(s.get("size", 0) for s in filtered)
                     text = "".join(s.get("text", "") for s in filtered).strip()
                     is_bold = any((s.get("flags", 0) & 2) != 0 for s in filtered)  # flag 2 indicates bold in many cases
-                    lines.append({"text": text, "size": max_size, "bold": is_bold, "infobox": is_infobox_block})
+                    lines.append({
+                        "text": text,
+                        "size": max_size,
+                        "bold": is_bold,
+                        "infobox": is_infobox_block,
+                        "bbox_norm": _norm_bbox(l.get("bbox"), page_width, page_height),
+                    })
             pages.append((i + 1, lines))
 
         header_meta: List[str] = []
@@ -469,7 +507,7 @@ class PDFExtractor:
             header_patterns, footer_patterns = self._detect_header_footer_patterns(pages)
             pages, header_meta, footer_meta = self._filter_header_footer_lines(pages, header_patterns, footer_patterns)
 
-        return title, pages, header_meta, footer_meta
+        return title, pages, header_meta, footer_meta, page_dims
 
     def _normalize_header_footer_text(self, text: str) -> str:
         """Normalize header/footer candidate text for stable comparison.
@@ -675,7 +713,7 @@ class PDFExtractor:
             pages.append((i + 1, lines))
         return title, pages
 
-    def _read_pages(self, pdf_bytes: bytes) -> Tuple[Optional[str], List[Tuple[int, List[Dict]]], List[str], List[str]]:
+    def _read_pages(self, pdf_bytes: bytes) -> Tuple[Optional[str], List[Tuple[int, List[Dict]]], List[str], List[str], Dict[int, Tuple[float, float]]]:
         return self._read_pages_pymupdf(pdf_bytes)
 
     def _is_heading(self, line: Dict, median_size: float) -> Tuple[int, Optional[str]]:
@@ -716,6 +754,7 @@ class PDFExtractor:
         doc_title: Optional[str],
         header_meta: Optional[List[str]] = None,
         footer_meta: Optional[List[str]] = None,
+        block_lines: Optional[List[Dict]] = None,
     ) -> List[Dict]:
         chunks = self.splitter.split_text(text)
         total_chunks = len(chunks)
@@ -737,6 +776,7 @@ class PDFExtractor:
                 "description": "",
                 "page_number": page_number,
             }
+            self._attach_geometry(payload, chunk, block_lines, page_number)
             # Stash document-level header/footer metadata once per payload so that
             # downstream consumers can inspect it without re-scanning the PDF.
             if header_meta:
@@ -745,6 +785,81 @@ class PDFExtractor:
                 payload["document_footers"] = footer_meta
             payloads.append(payload)
         return payloads
+
+    def _norm_for_region_match(self, text: str) -> str:
+        """Light normalization mirroring _normalize_text so raw source
+        lines can be substring-matched inside the emitted chunk text."""
+        s = str(text or "")
+        if self.html_entity_unescape:
+            s = html.unescape(s)
+        s = s.replace("\u00A0", " ")
+        if self.normalize_quotes:
+            for k, v in _QUOTE_MAP.items():
+                s = s.replace(k, v)
+        s = self._strip_markdown_links(s)
+        s = " ".join(s.split())
+        if self.strip_reference_markers:
+            s = re.sub(r"(?<=\w)\s*\[(?:\d{1,3})(?:[\s,–-]+\d{1,3})*\]", "", s)
+        if self.strip_unicode_superscripts:
+            s = re.sub(r"(?<=\w)\s*[\u00B9\u00B2\u00B3\u2070-\u2079]+", "", s)
+        return s
+
+    @staticmethod
+    def _regions_from_boxes(boxes: List[List[float]], page_number: Optional[int]) -> List[Dict]:
+        """De-dupe bboxes and wrap them as region entries."""
+        seen = set()
+        regions = []
+        for b in boxes:
+            key = tuple(round(v, 6) for v in b)
+            if key in seen:
+                continue
+            seen.add(key)
+            regions.append({"page_number": page_number, "bbox_norm": b})
+            if len(regions) >= MAX_REGIONS_PER_CHUNK:
+                break
+        return regions
+
+    def _regions_for_lines(
+        self,
+        chunk_text: str,
+        block_lines: Optional[List[Dict]],
+        page_number: Optional[int],
+    ) -> List[Dict]:
+        """Regions covering *chunk_text*: the bbox of each source line whose
+        text is contained in the chunk. Falls back to the union of all block
+        lines (the chunk is a slice of the block, so that still bounds it)."""
+        if not block_lines:
+            return []
+        norm_chunk = self._norm_for_region_match(chunk_text)
+        matched = []
+        for ln in block_lines:
+            bbox = ln.get("bbox_norm")
+            if not bbox:
+                continue
+            t = self._norm_for_region_match(ln.get("text"))
+            if t and (not norm_chunk or t in norm_chunk):
+                matched.append(bbox)
+        if not matched:
+            matched = [ln["bbox_norm"] for ln in block_lines if ln.get("bbox_norm")]
+        return self._regions_from_boxes(matched, page_number)
+
+    def _attach_geometry(
+        self,
+        payload: Dict,
+        chunk_text: str,
+        block_lines: Optional[List[Dict]],
+        page_number: Optional[int],
+    ) -> None:
+        """Stamp regions/page_numbers/highlight_status on a payload, same
+        shape as the Docling pipeline so citations deep-link identically."""
+        regions = self._regions_for_lines(chunk_text, block_lines, page_number)
+        if regions:
+            payload["regions"] = regions
+            payload["highlight_status"] = "available"
+        else:
+            payload["highlight_status"] = "unavailable"
+        if page_number:
+            payload["page_numbers"] = [page_number]
 
     def _strip_markdown_links(self, text: str) -> str:
         """
@@ -839,7 +954,7 @@ class PDFExtractor:
 
     def _parse_with_pymupdf(self, url: str, pdf_bytes: bytes) -> List[Dict]:
         #logger.debug("PDF: parsing url=%s", url)
-        doc_title, pages, header_meta, footer_meta = self._read_pages(pdf_bytes)
+        doc_title, pages, header_meta, footer_meta, _page_dims = self._read_pages(pdf_bytes)
         payloads: List[Dict] = []
         section_index = 0
         subsection_index = 0
@@ -847,15 +962,15 @@ class PDFExtractor:
         current_section: Optional[str] = None
         current_subsection: Optional[str] = None
         current_subsub: Optional[str] = None
-        buffer: List[str] = []
+        buffer: List[Dict] = []
         current_page: Optional[int] = None
-        infobox_buffer: List[str] = []
+        infobox_buffer: List[Dict] = []
         have_infobox = False
 
         def flush():
             nonlocal buffer, payloads, current_section, current_subsection, current_subsub, section_index, subsection_index, current_page
             if buffer:
-                text = "\n".join(buffer).strip()
+                text = "\n".join(l.get("text", "") for l in buffer).strip()
                 text = self._normalize_text(text)
                 if text and not self._should_skip_section(current_section, current_subsection, current_subsub):
                     payloads.extend(
@@ -871,6 +986,7 @@ class PDFExtractor:
                             doc_title,
                             header_meta,
                             footer_meta,
+                            block_lines=list(buffer),
                         )
                     )
             buffer = []
@@ -886,9 +1002,8 @@ class PDFExtractor:
             for line in lines:
                 # Collect infobox lines separately and exclude them from normal section parsing.
                 if line.get("infobox"):
-                    txt = line.get("text", "")
-                    if txt:
-                        infobox_buffer.append(txt)
+                    if line.get("text", "").strip():
+                        infobox_buffer.append(line)
                     continue
 
                 # Optionally skip Table-Of-Contents style lines
@@ -913,7 +1028,7 @@ class PDFExtractor:
                 else:
                     txt = line.get("text", "")
                     if txt:
-                        buffer.append(txt)
+                        buffer.append(line)
             flush()
         flush()
         #logger.info("PDF: parsed %s -> payloads=%d", url, len(payloads))
@@ -921,7 +1036,7 @@ class PDFExtractor:
         # Build an INFOBOX payload from geometry-detected blocks on page 1, if any.
         if infobox_buffer:
             # Use double-newline join to preserve line breaks for subject-prefixing, then normalize
-            raw_infobox = "\n\n".join(infobox_buffer).strip()
+            raw_infobox = "\n\n".join(l.get("text", "") for l in infobox_buffer).strip()
             normalized_infobox = self._normalize_text(raw_infobox)
             # Prefix each infobox line with the document title for stronger subject binding
             # --- Start suffix-stripping helper ---
@@ -973,7 +1088,16 @@ class PDFExtractor:
                     "title": subject or doc_title,
                     "description": "",
                     "page_number": 1,
+                    "page_numbers": [1],
                 }
+                info_regions = self._regions_from_boxes(
+                    [l["bbox_norm"] for l in infobox_buffer if l.get("bbox_norm")], 1
+                )
+                if info_regions:
+                    info_payload["regions"] = info_regions
+                    info_payload["highlight_status"] = "available"
+                else:
+                    info_payload["highlight_status"] = "unavailable"
                 if header_meta:
                     info_payload["document_headers"] = header_meta
                 if footer_meta:
@@ -1040,8 +1164,12 @@ class PDFExtractor:
         doc_title = None
         header_meta: List[str] = []
         footer_meta: List[str] = []
+        # Source lines/dims per page — reused for chunk region matching.
+        lines_by_page: Dict[int, List[Dict]] = {}
+        page_dims: Dict[int, Tuple[float, float]] = {}
         try:
-            doc_title, pages, header_meta, footer_meta = self._read_pages_pymupdf(pdf_bytes)
+            doc_title, pages, header_meta, footer_meta, page_dims = self._read_pages_pymupdf(pdf_bytes)
+            lines_by_page = {pn: ls for pn, ls in (pages or [])}
             # Collect infobox lines from page 1 (page_num == 1 and line.get("infobox"))
             infobox_lines = []
             for page_num, lines in pages:
@@ -1049,11 +1177,10 @@ class PDFExtractor:
                     continue
                 for line in lines:
                     if line.get("infobox") and line.get("text", "").strip():
-                        infobox_lines.append(line["text"])
-            infobox_lines = [ln for ln in infobox_lines if ln.strip()]
+                        infobox_lines.append(line)
             if infobox_lines:
                 # Use double-newline join to preserve line breaks for subject-prefixing, then normalize
-                raw_infobox = "\n\n".join(infobox_lines).strip()
+                raw_infobox = "\n\n".join(l["text"] for l in infobox_lines).strip()
                 normalized_infobox = self._normalize_text(raw_infobox)
                 # Prefix each infobox line with the document title for stronger subject binding
                 # --- Start suffix-stripping helper ---
@@ -1105,7 +1232,16 @@ class PDFExtractor:
                         "title": subject or doc_title,
                         "description": "",
                         "page_number": 1,
+                        "page_numbers": [1],
                     }
+                    info_regions = self._regions_from_boxes(
+                        [l["bbox_norm"] for l in infobox_lines if l.get("bbox_norm")], 1
+                    )
+                    if info_regions:
+                        info_payload["regions"] = info_regions
+                        info_payload["highlight_status"] = "available"
+                    else:
+                        info_payload["highlight_status"] = "unavailable"
                     if header_meta:
                         info_payload["document_headers"] = header_meta
                     if footer_meta:
@@ -1242,6 +1378,10 @@ class PDFExtractor:
                         return
                     if self._should_skip_section(current_section, current_subsection, current_subsub):
                         return
+                    try:
+                        page_key = int(page)
+                    except (TypeError, ValueError):
+                        page_key = page
                     payloads.extend(
                         self._chunk_payload(
                             norm,
@@ -1255,6 +1395,7 @@ class PDFExtractor:
                             doc_title,
                             header_meta,
                             footer_meta,
+                            block_lines=lines_by_page.get(page_key),
                         )
                     )
 
@@ -1379,9 +1520,20 @@ class PDFExtractor:
                             return val.strip()
                 return None
 
+            def _table_bbox_norm(t) -> Optional[List[float]]:
+                """Normalized bbox for a pymupdf4llm table object/dict."""
+                bbox = t.get("bbox") if isinstance(t, dict) else getattr(t, "bbox", None)
+                try:
+                    pk = int(page)
+                except (TypeError, ValueError):
+                    pk = page
+                dims = (page_dims or {}).get(pk)
+                return _norm_bbox(bbox, dims[0], dims[1]) if dims else None
+
             # Combine metadata-provided tables with any tables recovered directly
             # from markdown. We de-dupe by exact markdown text.
             combined_table_mds: List[str] = []
+            table_bbox_by_md: Dict[str, Optional[List[float]]] = {}
             seen_tbl: set = set()
 
             # First: metadata tables (preferred)
@@ -1394,6 +1546,8 @@ class PDFExtractor:
                     continue
                 seen_tbl.add(key)
                 combined_table_mds.append(key)
+                if key not in table_bbox_by_md:
+                    table_bbox_by_md[key] = _table_bbox_norm(t)
 
             # Second: markdown-extracted tables (fallback)
             for tmd in (fallback_table_mds or []):
@@ -1402,6 +1556,7 @@ class PDFExtractor:
                     continue
                 seen_tbl.add(key)
                 combined_table_mds.append(key)
+                table_bbox_by_md[key] = None
 
             if settings.debug_verbose:
                 try:
@@ -1528,6 +1683,16 @@ class PDFExtractor:
                         "description": "",
                         "page_number": page,
                     }
+                    tbl_bbox = table_bbox_by_md.get(tbl_md)
+                    if tbl_bbox:
+                        tbl_payload["regions"] = [
+                            {"page_number": page, "bbox_norm": tbl_bbox}
+                        ]
+                        tbl_payload["highlight_status"] = "available"
+                    else:
+                        tbl_payload["highlight_status"] = "unavailable"
+                    if page:
+                        tbl_payload["page_numbers"] = [page]
                     # Do NOT add infobox field for INFOBOX tables.
                     if header_meta:
                         tbl_payload["document_headers"] = header_meta
@@ -1575,6 +1740,11 @@ class PDFExtractor:
 
         # Default / fallback path: existing PyMuPDF-based parser.
         return self._parse_with_pymupdf(url, pdf_bytes)
+
+    def fetch_bytes(self, url: str) -> bytes:
+        """Fetch raw PDF bytes — public wrapper so callers can persist the
+        exact bytes they index (citation serving needs them later)."""
+        return self._fetch(url)
 
     def parse_from_url(self, url: str) -> List[Dict]:
         #logger.debug("PDF: parse_from_url %s", url)

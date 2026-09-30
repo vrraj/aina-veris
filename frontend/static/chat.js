@@ -882,9 +882,10 @@
     const raw = String(url || '').trim();
     const page = (
       (Array.isArray(pl.page_numbers) && pl.page_numbers[0]) ||
-      (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number)
+      (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number) ||
+      pl.page_number
     );
-    if (/^file:/i.test(raw) && pl.document_id) {
+    if (/^(file|uploaded):/i.test(raw) && pl.document_id) {
       const regions = Array.isArray(pl.regions) ? pl.regions : [];
       const onPage = regions.filter(
         (r) => r && r.page_number === page && Array.isArray(r.bbox_norm)
@@ -927,7 +928,8 @@
       const url = String(pl.url || '').trim();
       const page = (
         (Array.isArray(pl.page_numbers) && pl.page_numbers[0]) ||
-        (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number)
+        (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number) ||
+        pl.page_number
       );
       const section = [pl.section, pl.subsection]
         .filter((s) => s && s !== 'N/A' && s !== 'null')

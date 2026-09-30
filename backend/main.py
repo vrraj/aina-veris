@@ -717,6 +717,7 @@ async def index_pdf(
                     "hint": "Resubmit with 'Force delete existing' checked to migrate this document to the legacy PDF pipeline",
                 }
 
+        pdf_bytes: Optional[bytes] = None
         extractor = PDFExtractor(
             chunk_size=settings.html_chunk_size,
             chunk_overlap=settings.html_chunk_overlap,
@@ -735,6 +736,7 @@ async def index_pdf(
             import hashlib
             try:
                 file_data = base64.b64decode(pdf_input.file)
+                pdf_bytes = file_data
                 
                 # Generate a unique hash of the file content for duplicate checking
                 file_hash = hashlib.sha256(file_data).hexdigest()
@@ -776,8 +778,9 @@ async def index_pdf(
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Invalid file data: {str(e)}")
         else:
-            # Handle URL
-            chunks = extractor.parse_from_url(pdf_input.url)
+            # Handle URL — fetch once so we can persist the exact bytes indexed.
+            pdf_bytes = extractor.fetch_bytes(pdf_input.url)
+            chunks = extractor.parse_from_bytes(pdf_bytes, pdf_input.url)
             
         if pdf_input.max_chunks is not None and pdf_input.max_chunks > 0:
             chunks = chunks[:pdf_input.max_chunks]
@@ -803,6 +806,31 @@ async def index_pdf(
                 "tokens_used": tokens_used,
                 "embedding_cost": round(estimated_cost, 8)
             }
+
+        # Persist the exact bytes being indexed so file:// (and uploaded://)
+        # citations can be served back through /docling-document/{id} and
+        # highlighted in the PDF viewer — same store as the Docling path.
+        if pdf_bytes:
+            from backend.extractor.docling_pdf_extractor import (
+                compute_document_id,
+                save_source_pdf,
+            )
+
+            document_id = compute_document_id(pdf_bytes)
+            artifact_uri = f"internal://documents/{document_id}"
+            for c in chunks:
+                if isinstance(c, dict):
+                    c["document_id"] = document_id
+                    c["artifact_uri"] = artifact_uri
+            try:
+                save_source_pdf(
+                    pdf_bytes,
+                    document_id,
+                    getattr(settings, "pdf_docling_artifact_dir", None),
+                )
+            except Exception as exc:
+                # Best-effort: citations degrade to page links if the copy fails.
+                logger.warning("Could not persist source PDF for %s: %s", source, exc)
 
         result = _index_chunks_with_retrieval(
             chunks,

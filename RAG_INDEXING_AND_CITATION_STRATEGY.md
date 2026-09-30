@@ -251,8 +251,14 @@ payloads). The UI renders a clickable list and the redundant plain-text
 
 Text fragments are computed at render time from `payload.text` — they work
 on already-indexed documents with no reindex. `file://` links require the
-PDF persisted at index time, so documents indexed before persistence must
-be re-indexed (no fallback paths).
+PDF persisted at index time — both `/pdf` and `/index-pdf-docling` write
+the source bytes to the artifact store and stamp `document_id`/
+`artifact_uri` on every chunk, and `GET /docling-document/{id}` serves them
+back regardless of pipeline. Legacy `/pdf` chunks carry `regions` derived
+from the union of matched source-line bounding boxes (real table bboxes in
+the pymupdf4llm path) — coarser than Docling's per-item provenance, but
+enough for page + region highlights. Documents indexed before persistence
+must be re-indexed (no fallback paths).
 
 ## 4. Decision guide for a new corpus
 

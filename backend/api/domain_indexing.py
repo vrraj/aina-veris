@@ -251,6 +251,23 @@ def index_chunks_with_retrieval(
                 "embedding_runtime": spec_dict["runtime"],
             }
 
+            # Citation fields emitted by extractors (geometry, doc linkage,
+            # page info) — absent keys are simply not stored.
+            for key in (
+                "document_id",
+                "artifact_uri",
+                "page_number",
+                "page_numbers",
+                "regions",
+                "highlight_status",
+                "citation_label",
+                "display_text",
+                "subsubsection",
+            ):
+                val = chunk.get(key) if isinstance(chunk, dict) else None
+                if val is not None:
+                    payload[key] = val
+
             sparse_vector = None
             if has_sparse_vector:
                 try:
