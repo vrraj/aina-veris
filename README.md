@@ -230,6 +230,10 @@ file such as `scripts/batch/input/sample_batch_input.json`. Its estimate mode
 plans chunks and cost before indexing; run it with `--no-estimate` only when
 ready to process the sources.
 
+PDF items select an ingestion pipeline via `"pipeline"`: set a batch-level
+default (`"pymupdf"`, the default, or `"docling"` for datasheet-style PDFs)
+and override it per item — same fallback pattern as `active_domain`.
+
 ### Domain configuration
 
 A **domain** keeps a knowledge base and its retrieval policy together. Its

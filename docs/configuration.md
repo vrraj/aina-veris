@@ -35,7 +35,8 @@ embedding, and indexing into the shard its pipeline owns within the domain.
 For repeatable corpora, use `scripts/batch/process_docs.py` with an input file
 such as `scripts/batch/input/sample_batch_input.json`. Its estimate mode plans
 chunk and embedding cost before indexing; use `--no-estimate` only when ready to
-write vectors.
+write vectors. The `"pipeline"` field routes pdf items: a batch-level value
+(`"pymupdf"` or `"docling"`) is the default and per-item values override it.
 
 ## Multi-pipeline domains (shards)
 
