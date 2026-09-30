@@ -7,7 +7,7 @@ for the Docling ingestion path (endpoint, configuration, operational notes).
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "20px"}}}%%
 flowchart TB
-    subgraph Ingest["Ingestion"]
+    subgraph Ingest["<span style='font-size:28px; font-weight:700'>Ingestion</span>"]
         direction LR
         PDF["Simple PDFs"] -->|"POST /pdf"| EXT1["pymupdf4llm<br>markdown extract"]
         HTML["HTML / MediaWiki"] --> EXT3["HTML / MediaWiki extractors<br>(heading-id anchors)"]
@@ -28,7 +28,7 @@ flowchart TB
         end
     end
 
-    subgraph Index["Indexing"]
+    subgraph Index["<span style='font-size:28px; font-weight:700'>Indexing</span>"]
         direction LR
         EXT1 --> CHUNK["Structure-aware<br>chunker"]
         EXT3 --> CHUNK
@@ -41,7 +41,7 @@ flowchart TB
         DOCPIPE -.->|"artifact JSON +<br>raw PDF"| STORE[("docling_artifacts")]
     end
 
-    subgraph Retrieve["Retrieval & citations"]
+    subgraph Retrieve["<span style='font-size:28px; font-weight:700'>Retrieval &amp; citations</span>"]
         direction LR
         QD -->|"hybrid dense+sparse<br>RRF fusion"| FUSE["fused hits"]
         FUSE -.->|"opt-in: use_colbert /<br>enable_cross_encoder_rerank"| RR["ColBERT v2 +<br>bge-reranker-base"]
