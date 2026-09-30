@@ -99,15 +99,32 @@ Practical pattern: keep the Docker stack CPU for serving/search, run
 figure-heavy indexing batches from a native `mps` process — both write to
 the same Qdrant.
 
-**Model memory lifecycle.** Ingestion-only models (Docling layout,
-TableFormer, OCR, picture-description VLM) are never used at query time and
-are idle-evicted after `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` (default
-900 s). Embedding models (dense/sparse) serve queries and follow
-`MODEL_CACHE_IDLE_TTL_SECONDS` (default 300 s). One shared background
-sweeper covers every model cache, so idle memory is released even when no
-requests arrive; both settings accept `0` to keep models resident for the
-process lifetime. Rebuilding the Docling
-converter after eviction costs ~10–60 s of model loads on the next ingest.
+**Model memory lifecycle.** Every model is loaded lazily on first use and
+idle-evicted by a shared background sweeper (runs every 60 s), so memory is
+released even when no requests arrive. Two TTLs split the fleet by role:
+
+| Model(s) | Activates on | TTL setting | Default | Why |
+|---|---|---|---|---|
+| Dense `bge-base-en-v1.5`, sparse `Splade_PP_en_v1` | Every query/index embed | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s | Retrieval path — must stay warm for serving, but not held forever on an idle server |
+| ColBERT v2, `bge-reranker-base` (opt-in) | Reranking when enabled | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s | Same retrieval-path lifecycle as embeddings |
+| Docling layout, TableFormer, rapidocr, caption VLM | Only while indexing a PDF | `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` | 900 s | Ingestion-only — never serve queries; longer TTL because a converter rebuild costs ~10–60 s of model loads |
+
+Both TTLs accept `0` to keep models resident for the process lifetime.
+Eviction only frees RAM — weights stay on disk under
+`LOCAL_MODELS_CACHE_PATH` (default `~/models`; in Docker, `HF_HOME` lands
+inside that persisted volume so container recreation does not re-download).
+`PDF_DOCLING_WARMUP_ON_STARTUP=true` pre-downloads the Docling stack in a
+background task so the first ingest is fast. After eviction the next use
+cold-loads the model — seconds for embeddings, ~10–60 s for the Docling
+converter.
+
+**Manage Models UI** (`/models.html`, nav: *Manage Models*) shows every
+cache with per-model idle time, plus the local-model registry's on-disk and
+in-memory status. Actions: **Reload** (eject + immediate re-load, e.g.
+after swapping weights on disk), **Eject** a single model, **Eject all** in
+a cache or across the process. Same operations via the admin API:
+`GET /models/cache`, `POST /models/cache/eject`,
+`POST /models/cache/reload`, `POST /models/cache/eject-all`.
 
 ## Domain shards (multi-collection domains)
 
