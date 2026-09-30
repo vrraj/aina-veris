@@ -788,7 +788,9 @@ class PDFExtractor:
 
     def _norm_for_region_match(self, text: str) -> str:
         """Light normalization mirroring _normalize_text so raw source
-        lines can be substring-matched inside the emitted chunk text."""
+        lines can be substring-matched inside the emitted chunk text.
+        Markdown/HTML decoration from pymupdf4llm (**, _, <u>…) is stripped
+        so decoration differences don't defeat containment."""
         s = str(text or "")
         if self.html_entity_unescape:
             s = html.unescape(s)
@@ -797,6 +799,10 @@ class PDFExtractor:
             for k, v in _QUOTE_MAP.items():
                 s = s.replace(k, v)
         s = self._strip_markdown_links(s)
+        s = re.sub(r"</?[a-zA-Z][^>]*>", "", s)  # inline HTML tags
+        s = re.sub(r"[*_`~]", "", s)  # markdown emphasis/strikethrough/backticks
+        s = re.sub(r"\s+([,.;:!?\)\]])", r"\1", s)
+        s = re.sub(r"([\(\[])\s+", r"\1", s)
         s = " ".join(s.split())
         if self.strip_reference_markers:
             s = re.sub(r"(?<=\w)\s*\[(?:\d{1,3})(?:[\s,–-]+\d{1,3})*\]", "", s)
@@ -836,11 +842,21 @@ class PDFExtractor:
             bbox = ln.get("bbox_norm")
             if not bbox:
                 continue
+            # Infobox lines belong to their own INFOBOX payload — a chunk
+            # merely *mentioning* the subject must not pull the sidebar box
+            # in. Very short lines are weak evidence (substring hits on
+            # repeated labels), so they don't count as a match either.
+            if ln.get("infobox"):
+                continue
             t = self._norm_for_region_match(ln.get("text"))
-            if t and (not norm_chunk or t in norm_chunk):
+            if t and len(t) >= 6 and (not norm_chunk or t in norm_chunk):
                 matched.append(bbox)
         if not matched:
-            matched = [ln["bbox_norm"] for ln in block_lines if ln.get("bbox_norm")]
+            matched = [
+                ln["bbox_norm"]
+                for ln in block_lines
+                if ln.get("bbox_norm") and not ln.get("infobox")
+            ]
         return self._regions_from_boxes(matched, page_number)
 
     def _attach_geometry(
