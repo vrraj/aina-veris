@@ -29,11 +29,12 @@ from backend.core import (
     ChatRequest,
     ChatResponse,
     MediaWikiURLInput,
+    PDFDoclingInput,
     PDFInput,
     URLInput,
     PayloadUpdateRequest,
 )
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Literal, Optional, Any
 from pydantic import BaseModel, Field
 from pydantic import BaseModel, Field
 from backend.chat.chat_manager import ChatManager
@@ -2664,6 +2665,7 @@ class BatchURLItem(BaseModel):
     active_domain: Optional[str] = None
     user_agent: Optional[str] = None
     api_url: Optional[str] = None  # For MediaWiki API URL override
+    pipeline: Optional[Literal["pymupdf", "docling"]] = None  # pdf only; falls back to request.pipeline
 
 class BatchRequest(BaseModel):
     """Request model for batch processing documents"""
@@ -2673,6 +2675,7 @@ class BatchRequest(BaseModel):
     force_delete: bool = False
     filename: Optional[str] = None
     active_domain: Optional[str] = None
+    pipeline: Literal["pymupdf", "docling"] = "pymupdf"  # default pipeline for pdf items
 
 from fastapi.responses import StreamingResponse, JSONResponse
 import json
@@ -2682,10 +2685,11 @@ from typing import List, Dict
 import aiohttp
 from fastapi import HTTPException
 
-async def process_item(item, request, settings):
+async def process_item(item, batch_request, request, settings):
     try:
         # Handle local file paths for PDFs
         logger.info(f"Processing item: {item.url}")
+        pdf_pipeline = item.pipeline or batch_request.pipeline
         if item.doc_type.lower() == 'pdf' and item.url.startswith('file://'):
             # Turn "file:///app/data/..." into "/app/data/..."
             parsed = urlsplit(item.url)          # scheme=file, path=/app/...
@@ -2697,11 +2701,11 @@ async def process_item(item, request, settings):
                 with open(file_path, 'rb') as f:
                     files = {'file': (os.path.basename(file_path), f, 'application/pdf')}
                     form_data = {
-                        'estimate': str(request.estimate).lower(),
-                        'force_delete': str(request.force_delete).lower()
+                        'estimate': str(batch_request.estimate).lower(),
+                        'force_delete': str(batch_request.force_delete).lower()
                     }
-                    if request.max_chunks is not None:
-                        form_data['max_chunks'] = str(request.max_chunks)
+                    if batch_request.max_chunks is not None:
+                        form_data['max_chunks'] = str(batch_request.max_chunks)
                     
                     # Make an internal request to the /pdf endpoint
                     async with aiohttp.ClientSession() as session:
@@ -2714,19 +2718,22 @@ async def process_item(item, request, settings):
                         # Create JSON payload with base64-encoded file
                         payload = {
                             'file': file_b64,
-                            'estimate': request.estimate,
-                            'force_delete': request.force_delete,
-                            'active_domain': item.active_domain or request.active_domain,
+                            'estimate': batch_request.estimate,
+                            'force_delete': batch_request.force_delete,
+                            'active_domain': item.active_domain or batch_request.active_domain,
                             'url': item.url,
                             'filename': os.path.basename(file_path)
                         }
-                        if request.max_chunks is not None:
-                            payload['max_chunks'] = request.max_chunks
-                            
+                        if batch_request.max_chunks is not None:
+                            payload['max_chunks'] = batch_request.max_chunks
+                        if pdf_pipeline == 'docling':
+                            payload['skip_sections'] = item.skip_sections
+
                         # Using default FastAPI port for local development
+                        endpoint = '/index-pdf-docling' if pdf_pipeline == 'docling' else '/pdf'
                         headers = {'Content-Type': 'application/json'}
                         async with session.post(
-                            'http://localhost:8000/pdf',
+                            f'http://localhost:8000{endpoint}',
                             json=payload,
                             headers=headers
                         ) as response:
@@ -2750,22 +2757,33 @@ async def process_item(item, request, settings):
         
         # Route based on doc_type for non-file URLs
         if item.doc_type.lower() == 'pdf':
-            input_data = PDFInput(
-                url=item.url,
-                max_chunks=request.max_chunks,
-                force_delete=request.force_delete,
-                active_domain=item.active_domain or request.active_domain,
-                estimate=request.estimate
-            )
-            handler = index_pdf
+            if pdf_pipeline == 'docling':
+                input_data = PDFDoclingInput(
+                    url=item.url,
+                    max_chunks=batch_request.max_chunks or 0,
+                    force_delete=batch_request.force_delete,
+                    active_domain=item.active_domain or batch_request.active_domain,
+                    estimate=batch_request.estimate,
+                    skip_sections=item.skip_sections
+                )
+                handler = pdf_docling_endpoint.index_pdf_docling
+            else:
+                input_data = PDFInput(
+                    url=item.url,
+                    max_chunks=batch_request.max_chunks,
+                    force_delete=batch_request.force_delete,
+                    active_domain=item.active_domain or batch_request.active_domain,
+                    estimate=batch_request.estimate
+                )
+                handler = index_pdf
             
         elif item.doc_type.lower() == 'mediawiki':
             input_data = MediaWikiURLInput(
                 url=item.url,
-                max_chunks=request.max_chunks,
-                force_delete=request.force_delete,
-                active_domain=item.active_domain or request.active_domain,
-                estimate=request.estimate
+                max_chunks=batch_request.max_chunks,
+                force_delete=batch_request.force_delete,
+                active_domain=item.active_domain or batch_request.active_domain,
+                estimate=batch_request.estimate
             )
             handler = index_mediawiki_url
             
@@ -2773,17 +2791,17 @@ async def process_item(item, request, settings):
             input_data = URLInput(
                 urls=[item.url],
                 doc_type='html',
-                max_chunks=request.max_chunks,
-                force_delete=request.force_delete,
-                active_domain=item.active_domain or request.active_domain,
-                estimate=request.estimate,
+                max_chunks=batch_request.max_chunks,
+                force_delete=batch_request.force_delete,
+                active_domain=item.active_domain or batch_request.active_domain,
+                estimate=batch_request.estimate,
                 skip_sections=item.skip_sections,
                 user_agent=item.user_agent or settings.default_user_agent
             )
             handler = index_content
         
-        # Process the document
-        response = await handler(input_data)
+        # Process the document (all handlers take (input, request))
+        response = await handler(input_data, request)
         
         return {
             "url": item.url,
@@ -2846,7 +2864,7 @@ async def batch_process_docs(batch_request: BatchRequest, request: Request):
             }) + "\n"
             
             # Process the item
-            result = await process_item(item, request, settings)
+            result = await process_item(item, batch_request, request, settings)
             
             # Update totals
             if result.get('status') == 'success' and 'result' in result:

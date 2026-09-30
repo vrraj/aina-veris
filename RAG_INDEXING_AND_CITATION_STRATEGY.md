@@ -186,6 +186,11 @@ Notes:
 
 - The Docling path is **additive** — it writes a dedicated collection
   (`*_docling_v1`) and never touches legacy collections.
+- `POST /batch/process_docs` routes its `pdf` items through the same split:
+  a batch-level `"pipeline": "docling" | "pymupdf"` sets the default
+  (default `pymupdf`, preserving prior behavior), and a per-item
+  `"pipeline"` overrides it — same fallback pattern as `active_domain`.
+  HTML and MediaWiki items ignore the field.
 - Docling persists both an extraction artifact (JSON with full provenance)
   and the raw PDF beside it, which powers served citations later.
 - **Opt-in figure enrichment**: `PDF_DOCLING_PICTURE_DESCRIPTION` sends each
