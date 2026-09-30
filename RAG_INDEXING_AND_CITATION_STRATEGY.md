@@ -512,9 +512,11 @@ and set `PDF_DOCLING_ACCELERATOR_DEVICE=auto` or `cuda`.
   prose). **Geometry and table quality must be re-validated on real
   datasheet PDFs before production use** — the fixture cannot establish
   scanning, rotation, or multi-column quality.
-- Retrieval currently targets the new collection directly. Hybrid dense +
-  sparse fusion tuning (spec stage 4) is deferred follow-up work tracked in
-  `PDF_DOCLING_TASKS.md`.
+- Retrieval is live on the sharded path: `/search`, chat, and the eval
+  harness fan out across the domain's existing shards and merge candidates
+  with RRF; `local-hybrid` domains run dense + sparse fusion per shard.
+  What remains deferred is retrieval tuning / reranker evaluation against
+  a real datasheet eval set (spec stage 4, tracked in `PDF_DOCLING_TASKS.md`).
 - VLM figure descriptions are implemented but off by default
   (`PDF_DOCLING_PICTURE_DESCRIPTION`); validate against the retrieval eval
   harness before enabling broadly. ColPali visual retrieval remains a later
