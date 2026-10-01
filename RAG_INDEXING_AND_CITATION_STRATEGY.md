@@ -199,7 +199,14 @@ Notes:
   caption chunks with the figure's provenance intact. Off by default —
   it adds a model download and per-figure inference at index time.
 - **Future option** (deferred): ColPali-style visual retrieval over page
-  images. The payload/`regions` plumbing already supports it.
+  images — embed page renders directly (~1k patch vectors/page, MAXSIM
+  late interaction) as a `pipeline: colpali` shard and a third RRF leg.
+  Reaches content no text extractor sees (figures, scanned pages) and its
+  per-token similarity maps could back `regions` highlights. Costs:
+  ~0.5 MB vectors/page, page-level granularity (map pages → chunks), and
+  it never replaces text extraction — chunks still need real text. Gate
+  on retrieval-eval delta for figure-heavy queries; the shard/`regions`
+  plumbing already supports it.
 
 ## 2. Indexing and metadata
 

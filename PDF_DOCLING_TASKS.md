@@ -16,15 +16,19 @@ existing `/pdf` path, **without changing legacy behavior**:
   collection (`<domain_collection>_docling_v1`).
 - Stable document/point IDs, typed allowlisted payloads, `pipeline=pdf_docling_v1`.
 - `estimate` mode with zero writes; no silent fallback to the legacy parser.
-- Long term (deferred, see spec stages 4-7): hybrid retrieval tuning, validated
-  citations with viewer highlights, VLM figure descriptions, ColPali.
+- Long term (deferred, see spec stages 4 and 7): hybrid retrieval tuning
+  against a real eval set, and ColPali visual retrieval. Stages 5-6 shipped:
+  citations with pdf.js viewer highlights, persisted source PDFs, and opt-in
+  VLM figure descriptions.
 
 ## Non-goals for this track (deferred)
 
 - Stage 4 retrieval tuning/reranking evaluation — needs real datasheet eval set.
-- Stage 5 citation rendering + PDF viewer highlights — needs immutable PDF store
-  and UI work; separate track.
-- Stages 6-7 (VLM figures, ColPali) — only if evaluations show a gap.
+- Stage 7 (ColPali visual retrieval) — candidate design: `pipeline: colpali`
+  shard with Qdrant multivector (MAXSIM) page embeddings as a third RRF leg;
+  per-token similarity maps could generate `regions` highlights. Enable only
+  if evals show a gap on figure-heavy queries; ~0.5 MB vectors/page, page
+  granularity only. See `RAG_INDEXING_AND_CITATION_STRATEGY.md`.
 
 ## Blocked / pending input
 
