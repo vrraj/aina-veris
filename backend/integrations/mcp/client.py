@@ -6,7 +6,7 @@ import asyncio
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from typing import Any, Awaitable, Dict, List, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -132,13 +132,25 @@ def _run_coro_sync(coro: Awaitable[Any], *, timeout: float | None = None) -> Any
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(bounded)
+        try:
+            return asyncio.run(bounded)
+        except (asyncio.TimeoutError, FuturesTimeoutError) as exc:
+            # <3.11: wait_for raises FuturesTimeoutError, not builtin
+            # TimeoutError. Normalize so sync callers see the builtin.
+            raise TimeoutError(
+                f"operation timed out after {timeout}s"
+            ) from exc
 
     executor = ThreadPoolExecutor(max_workers=1)
     try:
         future = executor.submit(lambda: asyncio.run(bounded))
         grace = (timeout + 5.0) if timeout else None
-        return future.result(timeout=grace)
+        try:
+            return future.result(timeout=grace)
+        except (asyncio.TimeoutError, FuturesTimeoutError) as exc:
+            raise TimeoutError(
+                f"operation timed out after {timeout}s"
+            ) from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
