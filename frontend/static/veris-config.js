@@ -151,7 +151,7 @@ function renderCaches(caches) {
 
 async function load() {
   try {
-    const res = await fetch("/config/runtime");
+    const res = await fetch("/config/runtime", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     renderMemory(data.memory);
@@ -166,7 +166,9 @@ async function load() {
       }
     }
     renderCaches(data.memory.model_caches);
-    statusLine.textContent = `${data.tunables.length} tunables · ${data.persistence}`;
+    statusLine.textContent =
+      `${data.tunables.length} tunables · ${data.persistence}` +
+      ` · updated ${new Date().toLocaleTimeString()}`;
   } catch (err) {
     statusLine.textContent = `Failed to load: ${err.message}`;
   }
