@@ -75,9 +75,11 @@ PDF_DOCLING_ACCELERATOR_DEVICE=mps
   the Veris Configuration page (`/veris-config.html`) shows live
   available/RSS numbers.
 - **Caveats:** you manage the process (`nohup`; `stop-uvicorn` /
-  `kill-uvicorn` targets exist). `run.py` reloads on `backend/` and `.env`
-  changes, so code edits restart mid-ingest — use `start.py` or the
-  container for uninterrupted long runs.
+  `kill-uvicorn` targets exist). `run.py` auto-reloads on `backend/` file
+  changes (code edits restart mid-ingest — use `start.py` or the container
+  for uninterrupted long runs). `.env` is *not* watched, but each worker
+  spawn re-reads it — a code-change reload or `make stop-uvicorn` (the
+  supervisor respawns a fresh worker) both pick up env changes.
 
 ### Linux + NVIDIA (CUDA)
 
