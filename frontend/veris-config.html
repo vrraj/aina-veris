@@ -21,6 +21,12 @@
     .page-btn { background: #fff; border: 1px solid #d8d5cf; border-radius: 0.55rem; color: #171717; font-weight: 600; }
     .page-btn:hover { background: #f5f3ed; }
     .note-text { font-size: 0.72rem; color: #9a6a1a; }
+    .flash-ok { animation: flashOk 1.6s ease-out; border-radius: 0.4rem; }
+    @keyframes flashOk {
+      0% { background: #dcfce7; color: #166534; padding: 4px 10px; }
+      70% { background: #dcfce7; color: #166534; padding: 4px 10px; }
+      100% { background: transparent; }
+    }
   </style>
 </head>
 <body class="min-h-screen">

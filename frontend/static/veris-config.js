@@ -165,6 +165,9 @@ applyBtn.addEventListener("click", async () => {
     statusLine.textContent =
       `Applied ${Object.keys(data.applied).length} setting(s)` +
       (nCaches ? ` · ${nCaches} live cache(s) updated` : "");
+    statusLine.classList.remove("flash-ok");
+    void statusLine.offsetWidth; // restart the animation on rapid re-applies
+    statusLine.classList.add("flash-ok");
     pending.clear();
     await load();
   } catch (err) {
