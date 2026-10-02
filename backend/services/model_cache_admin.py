@@ -125,6 +125,19 @@ def _providers_of(model: Any) -> Optional[list]:
     return None
 
 
+def _accelerators_of(key: Any, model: Any) -> Optional[list]:
+    """Acceleration labels for a resident model: ONNX providers when
+    available; for non-ONNX models (e.g. BGE-M3 via FlagEmbedding/PyTorch)
+    the cache key suffix carries the resolved device instead."""
+    providers = _providers_of(model)
+    if providers:
+        return providers
+    suffix = str(key).rsplit(":", 1)[-1].lower()
+    if suffix in ("mps", "cpu", "xpu") or suffix.startswith("cuda"):
+        return [suffix]
+    return None
+
+
 def cache_status() -> Dict[str, Any]:
     """Snapshot every known model cache plus local-model locations."""
     caches = _caches()
@@ -142,7 +155,9 @@ def cache_status() -> Dict[str, Any]:
                     {
                         "key": str(key),
                         "idle_secs": meta["idle_secs"],
-                        "providers": _providers_of(cache._cache.get(key, (None, 0))[0]),
+                        "providers": _accelerators_of(
+                            key, cache._cache.get(key, (None, 0))[0]
+                        ),
                     }
                     for key, meta in stats["models"].items()
                 ],

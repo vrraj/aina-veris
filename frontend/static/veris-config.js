@@ -58,7 +58,7 @@ function providerChips(providers) {
   if (!providers || !providers.length) return '<span class="text-gray-400">—</span>';
   return providers.map((p) => {
     const short = p.replace("ExecutionProvider", "");
-    const gpu = /CoreML|CUDA|Tensorrt|ROCM/i.test(p);
+    const gpu = /CoreML|CUDA|Tensorrt|ROCM|MPS|XPU/i.test(p);
     const cls = gpu
       ? "background:#dcfce7;color:#166534;"
       : "background:#f3f4f6;color:#6b7280;";
