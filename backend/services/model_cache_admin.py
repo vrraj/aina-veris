@@ -31,6 +31,17 @@ def _caches() -> Dict[str, Tuple[TTLModelCache, str]]:
         logger.debug("embedding caches unavailable: %s", exc)
 
     try:
+        from backend.retrieval.providers.bgem3_embedding_provider import (
+            _get_shared_model_cache,
+        )
+        caches["embeddings-m3"] = (
+            _get_shared_model_cache(),
+            "BGE-M3 unified dense+sparse (FlagEmbedding)",
+        )
+    except Exception as exc:
+        logger.debug("bgem3 cache unavailable: %s", exc)
+
+    try:
         from backend.retrieval import retrieval_eval_service as eval_service
         caches["colbert-reranker"] = (eval_service._colbert_cache, "ColBERT late interaction")
         caches["cross-encoder-reranker"] = (
