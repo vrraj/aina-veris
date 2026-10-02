@@ -195,6 +195,14 @@ class ModelCacheActionInput(BaseModel):
     )
 
 
+class RuntimeConfigUpdateInput(BaseModel):
+    """Request model for POST /config/runtime: tunable key -> new value."""
+    updates: Dict[str, Any] = Field(
+        ...,
+        description="Map of tunable keys (from GET /config/runtime) to new values",
+    )
+
+
 # Payload update request schema
 class PayloadUpdateRequest(BaseModel):
     url: str

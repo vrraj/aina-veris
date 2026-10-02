@@ -55,6 +55,21 @@ def _ensure_sweeper() -> None:
     ).start()
 
 
+def set_idle_timeout_for_label(label: str, seconds: int) -> int:
+    """Update ``idle_timeout`` on every live cache tagged with *label*.
+
+    Cache instances capture their TTL at construction, so a runtime change
+    to a TTL setting needs this propagation to affect existing caches —
+    new caches resolve the setting at build time on their own. Returns the
+    number of caches updated."""
+    updated = 0
+    for cache in list(_ALL_CACHES):
+        if getattr(cache, "label", None) == label:
+            cache.idle_timeout = seconds
+            updated += 1
+    return updated
+
+
 class TTLModelCache:
     """Cache that evicts entries idle for longer than ``idle_timeout``.
 
@@ -65,10 +80,11 @@ class TTLModelCache:
     released even when no requests arrive.
     """
 
-    def __init__(self, idle_timeout: int = DEFAULT_IDLE_TIMEOUT):
+    def __init__(self, idle_timeout: int = DEFAULT_IDLE_TIMEOUT, label: Optional[str] = None):
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._loaders: Dict[str, Callable[[], Any]] = {}
         self.idle_timeout = idle_timeout
+        self.label = label
         _ALL_CACHES.add(self)
         _ensure_sweeper()
 

@@ -96,7 +96,10 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
     model_type = str(domain_cfg.get("model_type") or "hosted").lower()
     model_key = domain_cfg["embedding_model_key"]
     normalize = emb_cfg.get("normalize", True)
-    batch_size = emb_cfg.get("batch_size", 32)
+    batch_size = (
+        int(getattr(settings, "embed_batch_size_override", 0) or 0)
+        or emb_cfg.get("batch_size", 32)
+    )
     device = emb_cfg.get("device")
     extra = emb_cfg.get("extra") if isinstance(emb_cfg.get("extra"), dict) else {}
 

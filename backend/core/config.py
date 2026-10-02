@@ -671,6 +671,11 @@ class Settings(BaseSettings):
     # 0 disables (idle TTL only); a very large value always evicts.
     pdf_docling_free_converter_mb: int = 4096
 
+    # Runtime override for the per-model embedding batch size that otherwise
+    # comes from the model registry. Shrinking batches reduces peak memory
+    # during indexing on constrained hosts. 0 = use the registry default.
+    embed_batch_size_override: int = 0
+
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100
 

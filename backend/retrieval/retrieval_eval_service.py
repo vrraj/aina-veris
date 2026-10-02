@@ -22,7 +22,7 @@ def _idle_timeout() -> int:
     return int(getattr(settings, "model_cache_idle_ttl_seconds", 300))
 
 
-_colbert_cache = TTLModelCache(idle_timeout=_idle_timeout())
+_colbert_cache = TTLModelCache(idle_timeout=_idle_timeout(), label="retrieval")
 
 
 def _get_colbert_model(model_name: str, cache_dir: str):
@@ -36,7 +36,7 @@ def _get_colbert_model(model_name: str, cache_dir: str):
     return _colbert_cache.get(key, _loader)
 
 
-_cross_encoder_cache = TTLModelCache(idle_timeout=_idle_timeout())
+_cross_encoder_cache = TTLModelCache(idle_timeout=_idle_timeout(), label="retrieval")
 
 
 def _get_cross_encoder_model(model_name: str, cache_dir: str):

@@ -71,3 +71,22 @@ for the architecture.
 
 Changing a collection, embedding model, vector shape, or chunking policy
 requires re-indexing the affected corpus.
+
+## Runtime tunables (Veris Configuration)
+
+`GET /config/runtime` exposes a curated set of live-adjustable settings —
+value, unit, allowed range, and description — plus a memory panel (system
+free/used, process RSS, cgroup cap when containerized, resident model
+caches). `POST /config/runtime` applies changes in-memory without a restart;
+values reset to env/defaults on restart. The page is served at
+`/veris-config.html` and linked under **Admin → Veris Configuration** on the
+home page.
+
+| Tunable | What it adjusts |
+| --- | --- |
+| `pdf_docling_free_converter_mb` | Free-RAM floor below which the Docling converter is ejected after conversion (0 disables) |
+| `embed_batch_size_override` | Overrides the per-model registry `batch_size` during embedding (0 = registry default) |
+| `model_cache_idle_ttl_seconds` | Retrieval model idle TTL — propagates to live dense/sparse/reranker caches |
+| `ingestion_model_cache_idle_ttl_seconds` | Docling converter idle TTL — propagates to the live converter cache |
+| `mcp_tool_timeout_seconds` | Hard cap on external MCP tool calls |
+| `top_k` | Default retrieval breadth (a few raw-search helpers bind it at startup; restart guarantees it everywhere) |

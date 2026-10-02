@@ -240,7 +240,8 @@ def _get_converter_cache() -> "TTLModelCache":
             from backend.retrieval.model_cache import TTLModelCache
 
             _CONVERTER_CACHE = TTLModelCache(
-                idle_timeout=_converter_idle_timeout()
+                idle_timeout=_converter_idle_timeout(),
+                label="ingestion",
             )
         return _CONVERTER_CACHE
 
