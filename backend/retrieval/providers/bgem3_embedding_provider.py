@@ -96,7 +96,7 @@ class Bgem3EmbeddingProvider:
             )
             return BGEM3FlagModel(
                 spec.model,
-                use_fp16=False,
+                use_fp16=bool((spec.extra or {}).get("use_fp16", False)),
                 devices=device,
                 **kwargs,
             )

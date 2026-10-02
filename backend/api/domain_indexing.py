@@ -120,6 +120,15 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
         emits = resolved_local_cfg.get("emits") or []
         if emits:
             dimensions = resolved_local_cfg.get("dimensions") or emb_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
+            # Unified models run PyTorch, not ONNX — the retrieval-spec's
+            # `device` (an ONNX-era default, e.g. cpu) must not pin them.
+            # Their own registry `device` wins; absent → provider auto-resolves
+            # mps/cuda/cpu. Same for batch_size and use_fp16.
+            device = resolved_local_cfg.get("device")
+            if resolved_local_cfg.get("batch_size") and not getattr(settings, "embed_batch_size_override", 0):
+                batch_size = int(resolved_local_cfg["batch_size"])
+            if resolved_local_cfg.get("use_fp16") is not None:
+                extra = dict(extra, use_fp16=bool(resolved_local_cfg["use_fp16"]))
         else:
             dimensions = emb_cfg.get("dimensions") or resolved_local_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
         runtime = resolve_model_runtime(resolved_local_cfg, default=emb_cfg.get("runtime", "fastembed"))

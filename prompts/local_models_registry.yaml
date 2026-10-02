@@ -119,6 +119,9 @@ local_models:
     runtime: "bgem3"
     emits: [dense, sparse]
     max_length: 8192
+    batch_size: 64
+    # device: cpu        # pin a device; absent → auto (mps > cuda > cpu)
+    # use_fp16: true     # optional: half precision on GPU devices
   
   # TIER 2: LATE INTERACTION (Token-level precision for symbols/code)
   late_interaction:

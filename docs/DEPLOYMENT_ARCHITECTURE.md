@@ -188,10 +188,19 @@ same idle-TTL model cache.
 **Try it:** point a domain at `profile: local-bgem3` (or
 `embedding_model_key: local:m3_default`) in `domain_embedding_config.yaml`,
 then ingest via the normal Docling route. Requires `FlagEmbedding` (in
-`requirements.txt`); device auto-resolves `mps` → `cuda` → `cpu`, overridable
-via the spec's `device`. Docker users: FlagEmbedding pulls the PyTorch
+`requirements.txt`). Docker users: FlagEmbedding pulls the PyTorch
 stack — the CPU-pinned wheels keep the image small, but there is no ONNX
 path for M3, so CoreML provider config does not apply to it.
+
+**M3 knobs** (on the `m3` registry entry — the retrieval-spec `device`/`batch_size`
+defaults are ONNX-era globals and do *not* pin M3):
+
+| Key | Default | When to set |
+|---|---|---|
+| `device` | unset → auto `mps` → `cuda` → `cpu` | `cpu` to keep M3 off GPU, `cuda:N` to pick a card |
+| `batch_size` | 64 | Lower on <16 GB hosts; `EMBED_BATCH_SIZE_OVERRIDE` still wins when set |
+| `use_fp16` | false | `true` halves MPS/CUDA memory + speeds encode; keep false on CPU |
+| `max_length` | 8192 | Lower only if your chunks never approach it |
 
 ## Known limitations
 
