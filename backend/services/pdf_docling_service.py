@@ -23,6 +23,7 @@ from backend.extractor.docling_pdf_extractor import (
     DoclingUnavailableError,
     compute_document_id,
     extract_pdf_document,
+    release_converter_if_memory_tight,
     save_artifact,
     save_source_pdf,
 )
@@ -170,6 +171,10 @@ def index_pdf_docling(pdf_input, progress=None, cancel_event=None) -> Dict[str, 
     # Conversion can't be interrupted mid-call, so a disconnect during it is
     # honoured here — before chunking, artifact writes and indexing.
     raise_if_cancelled(cancel_event)
+
+    # The converter is dead weight from here on — free it before the
+    # embedding stage loads dense/sparse models when memory is tight.
+    release_converter_if_memory_tight()
 
     plan = build_chunks(
         extraction,

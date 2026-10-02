@@ -469,3 +469,59 @@ def test_converter_model_names_includes_ocr_and_repo_id(monkeypatch):
     custom = mod._converter_model_names(False, "fast", True, "org/Custom-VLM-7B")
     assert "org/Custom-VLM-7B" in custom
     assert "RapidOCR" not in custom
+
+
+def _seeded_converter_cache(monkeypatch):
+    """A converter cache holding one fake entry (restored after the test)."""
+    import backend.extractor.docling_pdf_extractor as mod
+    from backend.retrieval.model_cache import TTLModelCache
+
+    cache = TTLModelCache(idle_timeout=900)
+    cache.get(("k",), lambda: object())
+    monkeypatch.setattr(mod, "_CONVERTER_CACHE", cache)
+    return mod, cache
+
+
+def _fake_memory(monkeypatch, free_mb):
+    import types
+
+    import psutil
+
+    monkeypatch.setattr(
+        psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(available=free_mb * 1024 * 1024),
+    )
+
+
+def test_release_converter_ejects_when_memory_tight(monkeypatch):
+    from backend.core.config import settings
+
+    mod, cache = _seeded_converter_cache(monkeypatch)
+    monkeypatch.setattr(settings, "pdf_docling_free_converter_mb", 2048)
+    _fake_memory(monkeypatch, free_mb=512)
+
+    assert mod.release_converter_if_memory_tight() is True
+    assert cache.stats()["cached_models"] == 0
+
+
+def test_release_converter_keeps_cache_when_memory_ample(monkeypatch):
+    from backend.core.config import settings
+
+    mod, cache = _seeded_converter_cache(monkeypatch)
+    monkeypatch.setattr(settings, "pdf_docling_free_converter_mb", 2048)
+    _fake_memory(monkeypatch, free_mb=8192)
+
+    assert mod.release_converter_if_memory_tight() is False
+    assert cache.stats()["cached_models"] == 1
+
+
+def test_release_converter_disabled_at_zero(monkeypatch):
+    from backend.core.config import settings
+
+    mod, cache = _seeded_converter_cache(monkeypatch)
+    monkeypatch.setattr(settings, "pdf_docling_free_converter_mb", 0)
+    _fake_memory(monkeypatch, free_mb=64)
+
+    assert mod.release_converter_if_memory_tight() is False
+    assert cache.stats()["cached_models"] == 1

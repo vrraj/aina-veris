@@ -109,6 +109,12 @@ released even when no requests arrive. Two TTLs split the fleet by role:
 | ColBERT v2, `bge-reranker-base` (opt-in) | Reranking when enabled | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s | Same retrieval-path lifecycle as embeddings |
 | Docling layout, TableFormer, rapidocr, caption VLM | Only while indexing a PDF | `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` | 900 s | Ingestion-only — never serve queries; longer TTL because a converter rebuild costs ~10–60 s of model loads |
 
+Also `PDF_DOCLING_FREE_CONVERTER_MB` (default 2048, `0` disables): right
+after a conversion completes — before the embedding stage loads dense +
+sparse models — the converter cache is ejected if system free memory is
+below the floor. Guards against mid-request OOM kills on constrained
+hosts; on roomy machines the converter stays warm for the next ingest.
+
 Both TTLs accept `0` to keep models resident for the process lifetime.
 Eviction only frees RAM — weights stay on disk under
 `LOCAL_MODELS_CACHE_PATH` (default `~/models`; in Docker, `HF_HOME` lands

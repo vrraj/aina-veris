@@ -662,6 +662,12 @@ class Settings(BaseSettings):
     # on figures (package outlines, 0.55mm callouts). Higher values cost
     # memory and VLM prefill time on every generated image.
     pdf_docling_images_scale: float = 1.0
+    # After a Docling conversion completes, eject the converter (layout +
+    # TableFormer + OCR/VLM stack, ~1.5-2 GB) from the idle-TTL cache when
+    # system free memory drops below this many MB. Embedding models load
+    # right after conversion, so a still-resident converter can push a
+    # constrained host over the edge mid-request. 0 disables (idle TTL only).
+    pdf_docling_free_converter_mb: int = 2048
 
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100

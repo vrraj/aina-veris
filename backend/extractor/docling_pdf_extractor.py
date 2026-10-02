@@ -304,6 +304,46 @@ def _report(progress, message: str) -> None:
             logger.debug("progress callback failed", exc_info=True)
 
 
+def release_converter_if_memory_tight() -> bool:
+    """Eject cached converters when free RAM is below the configured floor.
+
+    Called by the service right after conversion: the converter (layout +
+    TableFormer + optional OCR/VLM) is no longer needed for the request,
+    but embedding models load immediately afterwards — on memory-tight
+    hosts the combination can OOM-kill the process mid-ingest. Evicting
+    here is safe for concurrent converters: eject drops the cache entry,
+    while an in-flight convert keeps its own object reference until done.
+
+    Returns True when the cache was cleared. ``pdf_docling_free_converter_mb``
+    = 0 disables (idle TTL only). In-flight conversions elsewhere are
+    unaffected — they hold their own references.
+    """
+    try:
+        from backend.core.config import settings
+
+        floor_mb = int(getattr(settings, "pdf_docling_free_converter_mb", 0))
+    except Exception:
+        floor_mb = 0
+    if floor_mb <= 0 or _CONVERTER_CACHE is None:
+        return False
+    try:
+        import psutil
+
+        free_mb = psutil.virtual_memory().available / (1024 * 1024)
+    except Exception:
+        logger.debug("psutil unavailable; skipping converter memory check")
+        return False
+    if free_mb >= floor_mb:
+        return False
+    logger.info(
+        "Free memory %.0f MB below floor %d MB — ejecting Docling converter cache",
+        free_mb,
+        floor_mb,
+    )
+    _CONVERTER_CACHE.clear()
+    return True
+
+
 def _build_converter(
     do_ocr: bool,
     table_mode: str,
