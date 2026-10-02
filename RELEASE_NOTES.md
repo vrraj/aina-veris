@@ -39,6 +39,11 @@ that deep-links chat sources into a highlighted PDF viewer.
   (bge-base-en-v1.5) + sparse (SPLADE) retrieval fused via Qdrant RRF per
   shard; domain definitions gain a `profile` shorthand so only
   `collection_name` + `profile` are required.
+- **Experimental BGE-M3 unified path** — `profile: local-bgem3` emits
+  dense (1024-d) + sparse from a single BGE-M3 encode (~4–5× faster
+  embedding than the two-model path, 8k context), isolated in its own
+  collection since its sparse vectors are vocabulary-bound to M3. Stage-B
+  rescoring still uses the existing optional ColBERTv2 reranker.
 - **Retrieval evaluations** — labeled dataset store, run-set endpoint, and
   an evals UI for measuring retrieval quality independent of generation.
 

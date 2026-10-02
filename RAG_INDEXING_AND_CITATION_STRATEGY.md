@@ -105,7 +105,7 @@ released even when no requests arrive. Two TTLs split the fleet by role:
 
 | Model(s) | Activates on | TTL setting | Default | Why |
 |---|---|---|---|---|
-| Dense `bge-base-en-v1.5`, sparse `Splade_PP_en_v1` | Every query/index embed | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s | Retrieval path — must stay warm for serving, but not held forever on an idle server |
+| Dense `bge-base-en-v1.5`, sparse `Splade_PP_en_v1`; unified `bge-m3` (opt-in domains) | Every query/index embed | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s | Retrieval path — must stay warm for serving, but not held forever on an idle server |
 | ColBERT v2, `bge-reranker-base` (opt-in) | Reranking when enabled | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s | Same retrieval-path lifecycle as embeddings |
 | Docling layout, TableFormer, rapidocr, caption VLM | Only while indexing a PDF | `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` | 900 s | Ingestion-only — never serve queries; longer TTL because a converter rebuild costs ~10–60 s of model loads |
 
@@ -180,6 +180,7 @@ Models used per stage (full inventory):
 | Figure captions | `SmolVLM-256M-Instruct` or `granite-vision-3.3-2b` or any HF repo id (opt-in, `PDF_DOCLING_PICTURE_DESCRIPTION*`) | Turns detected picture regions into searchable text |
 | Dense embedding | `BAAI/bge-base-en-v1.5` 768-dim (or hosted 1536) | Semantic similarity |
 | Sparse embedding | `prithivida/Splade_PP_en_v1` | Learned lexical match — part numbers, units, test conditions |
+| Unified dense+sparse (opt-in) | `BAAI/bge-m3` 1024-d via FlagEmbedding — `local-bgem3` profile | One encode emits both vector types; 8k context; own collection (different dims + sparse vocab) |
 | Late interaction | `colbert-ir/colbertv2.0` (opt-in, `use_colbert`) | Token-level precision for symbols/part numbers |
 | Reranker | `BAAI/bge-reranker-base` (opt-in, `enable_cross_encoder_rerank`) | Cross-encoder rescore of fused hits |
 | Answer generation | hosted LLM (OpenAI / Gemini per env keys) | Synthesizes the cited answer |
@@ -241,7 +242,15 @@ Notes:
   dense vectors blur
 - Named-vector layout (`dense` + `sparse`) with **domain profiles**:
   `legacy-dense`, `hosted-dense`, `local-dense`, `hosted-hybrid`,
-  `local-hybrid` — see `prompts/domain_embedding_config.yaml`
+  `local-hybrid`, `local-bgem3` — see `prompts/domain_embedding_config.yaml`
+- **Unified single-pass option (`local-bgem3`)**: BGE-M3's `emits:
+  [dense, sparse]` makes indexing run one encode per batch instead of
+  separate dense + sparse passes. Sparse vectors are vocabulary-bound —
+  M3 domains resolve their sparse *query* spec from the domain's
+  `embedding_model_key` so query and index sides share the M3 vocabulary;
+  retrieval is unchanged (dense+sparse prefetch → RRF → optional ColBERTv2
+  rescore). See DEPLOYMENT_ARCHITECTURE.md → "BGE-M3 single-pass
+  embeddings".
 
 **Idempotency:** stable point IDs derived from
 `(domain, pipeline_version, source_key, chunk_id)`; re-indexing replaces
