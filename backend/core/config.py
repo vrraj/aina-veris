@@ -752,6 +752,15 @@ class Settings(BaseSettings):
         """Vector type from active domain configuration (None, 'dense', or 'hybrid')"""
         return self.DOMAIN_EMBEDDING_CONFIG[self.active_domain].get("vector_type")
 
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        # Allow extra env vars (e.g., feature flags) without validation errors.
+        "extra": "ignore",
+    }
+
+
 def get_assistant_role(settings_obj: Any, params: Dict[str, Any] | None = None) -> str:
     """
     Get assistant role for current inference model from model registry.
@@ -786,14 +795,6 @@ def get_assistant_role(settings_obj: Any, params: Dict[str, Any] | None = None) 
 # -------------------------------------------------------------------------
 # Shared directory for PDF files that can be referenced by filename only
 # shared_pdf_directory: str = Field(env="SHARED_PDF_DIRECTORY", default="/tmp/shared_pdfs")
-
-model_config = {
-    "env_file": ".env",
-    "env_file_encoding": "utf-8",
-    "case_sensitive": False,
-    # Allow extra env vars (e.g., feature flags) without validation errors.
-    "extra": "ignore",
-}
 
 
 # Initialize settings after all classes are defined
