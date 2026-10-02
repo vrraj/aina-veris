@@ -718,10 +718,12 @@ deployment guidance, including MCP authorization and metadata requirements.
 
 ```bash
 # Application lifecycle
-make start
+make start          # all containers (CPU; macOS Docker has no GPU access)
 make rebuild
 make stop
-make start-debug
+make start-hybrid   # app in .venv + Qdrant in Docker — the macOS GPU path (MPS/CoreML)
+make stop-hybrid
+make start-debug    # venv, foreground, auto-reload
 
 # Qdrant operations
 make qdrant-status

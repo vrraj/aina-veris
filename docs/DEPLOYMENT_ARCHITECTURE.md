@@ -14,6 +14,32 @@ decides both GPU access and memory headroom.
 | Linux + NVIDIA Docker | `docker compose --gpus` (toolkit required) | **CUDA** | Container sees host GPU; VM ceiling doesn't exist on native Linux | GPU server deployment |
 | Fully native | `.venv/bin/python run.py` + a host-managed Qdrant | MPS + CoreML | Full host RAM | No Docker at all; you manage both processes |
 
+## Starting and stopping
+
+```bash
+# CPU — full Docker (Linux, or macOS where the VM cannot see the GPU)
+make start                 # docker compose up -d (webapp + qdrant)
+make rebuild               # after code changes
+make stop
+
+# GPU on Apple Silicon — hybrid: native app (MPS/CoreML) + Docker Qdrant
+make start-hybrid          # starts Docker, qdrant only, then run.py in .venv
+make stop-hybrid           # stops qdrant + SIGTERMs uvicorn cleanly
+
+# GPU on Linux + NVIDIA — same compose topology with the toolkit and a
+# GPU image variant; see the CUDA section below.
+docker compose up -d
+
+# Development niceties (venv only)
+make start-debug           # foreground uvicorn, auto-reload, debug logs
+make stop-uvicorn          # SIGTERM anything on :8100
+```
+
+`.env` differences between the modes: the app is host-side in hybrid mode,
+so it must use the published Qdrant port (`QDRANT_HOST=localhost`,
+`QDRANT_PORT=6335`) — containerized `webapp` uses the compose-network
+`qdrant:6333` automatically via `DOCKER_QDRANT_HOST/PORT` defaults.
+
 ## Mode details
 
 ### Full Docker (`make start`)
