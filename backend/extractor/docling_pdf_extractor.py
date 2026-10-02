@@ -333,14 +333,20 @@ def release_converter_if_memory_tight() -> bool:
     except Exception:
         logger.debug("psutil unavailable; skipping converter memory check")
         return False
+    logger.info(
+        "Post-convert memory check: %.0f MB free (floor %d MB)", free_mb, floor_mb
+    )
     if free_mb >= floor_mb:
         return False
-    logger.info(
-        "Free memory %.0f MB below floor %d MB — ejecting Docling converter cache",
-        free_mb,
-        floor_mb,
-    )
     _CONVERTER_CACHE.clear()
+    # gc alone may leave freed memory in malloc arenas; on glibc, trim so the
+    # embedding stage actually sees the headroom the eject released.
+    try:
+        import ctypes
+
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
     return True
 
 
