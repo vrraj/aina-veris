@@ -90,3 +90,9 @@ home page.
 | `ingestion_model_cache_idle_ttl_seconds` | Docling converter idle TTL — propagates to the live converter cache |
 | `mcp_tool_timeout_seconds` | Hard cap on external MCP tool calls |
 | `top_k` | Default retrieval breadth (a few raw-search helpers bind it at startup; restart guarantees it everywhere) |
+
+See [Deployment Architecture](DEPLOYMENT_ARCHITECTURE.md) for deployment
+modes (Docker, hybrid/native, NVIDIA), GPU acceleration paths, and the
+config-file-only knobs (`PDF_DOCLING_ACCELERATOR_DEVICE`, registry
+`extra.providers`) that bind at model load and are therefore not part of
+the runtime-tunable set.

@@ -39,7 +39,13 @@ retrieval:
       normalize: true
       batch_size: 32
       device: cpu
-      extra: {}
+      extra:
+        # ONNX Runtime execution providers, tried in order. CoreML routes
+        # dense+sparse embedding to the Apple GPU/ANE when running natively
+        # (make start-hybrid); it is absent in Linux containers and ORT
+        # warns then falls through to CPU. Linux+NVIDIA: swap in
+        # CUDAExecutionProvider with the onnxruntime-gpu package.
+        providers: [CoreMLExecutionProvider, CPUExecutionProvider]
     rerank:
       task: rerank
       enabled: true
@@ -67,7 +73,8 @@ retrieval:
         normalize: true
         batch_size: 32
         device: cpu
-        extra: {}
+        extra:
+          providers: [CoreMLExecutionProvider, CPUExecutionProvider]
       rerank:
         task: rerank
         enabled: true

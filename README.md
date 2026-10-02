@@ -694,7 +694,7 @@ of the available evaluation controls and outputs.**
 | **A2A research agents** | [A2A integration guide](README_A2A.md) |
 | **MCP tools and registry** | [MCP specification](docs/mcp_specs.md) · [Tool registry guide](docs/tool_registry.md) |
 | **Retrieval tuning** | [Retrieval evaluation guide](docs/retrieval-evals.md) · [Compound queries](docs/compound-queries.md) |
-| **Operations and deployment** | [Security](SECURITY.md) · [Development](docs/development.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) |
+| **Operations and deployment** | [Security](SECURITY.md) · [Development](docs/development.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) · [Deployment modes & GPU](docs/DEPLOYMENT_ARCHITECTURE.md) |
 
 ## Further Reading
 
