@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 from qdrant_client import models
 
 from backend.api.domain_indexing import (
+    generate_embedding_bundle_with_retrieval,
     generate_embeddings_with_retrieval,
     get_embedding_spec_for_domain,
     resolve_domain_config,
@@ -270,6 +271,9 @@ def index_docling_chunks(
 
     spec_dict = get_embedding_spec_for_domain(active_domain)
     batch_size = spec_dict["batch_size"]
+    # Unified single-pass models (e.g. BGE-M3) emit dense + sparse from one
+    # encode call; skip the separate sparse pass for them.
+    unified_emits_sparse = "sparse" in (spec_dict.get("emits") or [])
 
     try:
         vectors_cfg = qdrant.client.get_collection(collection_name).config.params.vectors
@@ -295,10 +299,16 @@ def index_docling_chunks(
         raise_if_cancelled(cancel_event)
         batch = chunk_list[batch_start : batch_start + batch_size]
         batch_texts = [c.embedding_text for c in batch]
-        embeddings = generate_embeddings_with_retrieval(batch_texts, active_domain)
-
         sparse_dicts: List[Optional[Dict[str, List[float]]]] = [None] * len(batch)
-        if has_sparse_vector:
+        if unified_emits_sparse and has_sparse_vector:
+            bundle = generate_embedding_bundle_with_retrieval(batch_texts, active_domain)
+            embeddings = bundle.vectors
+            sparse_dicts = list(bundle.sparse_vectors or [])
+            sparse_dicts.extend({"indices": [], "values": []} for _ in range(len(batch) - len(sparse_dicts)))
+        else:
+            embeddings = generate_embeddings_with_retrieval(batch_texts, active_domain)
+
+        if has_sparse_vector and not unified_emits_sparse:
             try:
                 sparse_dicts = list(qdrant.generate_sparse_embeddings_batch(batch_texts))
             except Exception:

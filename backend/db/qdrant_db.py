@@ -360,17 +360,24 @@ class QdrantDB:
                 except Exception:
                     dims = None
 
+                emits = dense_config.get("emits") or []
+                runtime = str(dense_config.get("runtime") or "fastembed") if emits else "fastembed"
+                extra = {"cache_dir": cache_dir} if cache_dir else {}
+                if dense_config.get("max_length"):
+                    extra["max_length"] = dense_config.get("max_length")
+
                 spec = EmbeddingSpec(
                     task="embedding",
-                    runtime="fastembed",
+                    runtime=runtime,
                     provider="local",
                     model=local_model_name,
                     dimensions=dims,
                     normalize=True,
                     batch_size=32,
                     device=dense_config.get("device"),
-                    extra={"cache_dir": cache_dir} if cache_dir else {},
+                    extra=extra,
                     vector_type="dense",
+                    emits=list(emits),
                 )
 
                 embedding_result = EmbeddingRouter().embed([text], spec)
@@ -452,28 +459,55 @@ class QdrantDB:
             raise
 
     def _sparse_embedding_spec(self):
-        """EmbeddingSpec for the configured local sparse (SPLADE) model."""
-        from backend.retrieval.schemas import EmbeddingSpec
-        from backend.retrieval.config_loader import get_model_config, resolve_local_model_cache_dir
+        """EmbeddingSpec for the sparse model matching this domain.
 
-        sparse_config = get_model_config("sparse")
+        Sparse vectors are vocabulary-bound to the model that produced them.
+        Domains indexed by a unified model (e.g. BGE-M3 emits=sparse) must
+        query sparse with the SAME model — falling back to the global SPLADE
+        config would silently produce incompatible vectors.
+        """
+        from backend.retrieval.schemas import EmbeddingSpec
+        from backend.retrieval.config_loader import (
+            get_model_config,
+            get_model_config_by_key,
+            resolve_local_model_cache_dir,
+        )
+
+        sparse_config = None
+        runtime = "fastembed"
+        if str(self.embedding_model_key).startswith("local:"):
+            try:
+                local_cfg = get_model_config_by_key(self.embedding_model_key)
+                if "sparse" in (local_cfg.get("emits") or []):
+                    sparse_config = local_cfg
+                    runtime = str(local_cfg.get("runtime") or "bgem3")
+            except Exception:
+                pass
+        if sparse_config is None:
+            sparse_config = get_model_config("sparse")
+
         sparse_model = sparse_config.get("name")
         if not sparse_model:
             raise ValueError("Sparse model name missing from retrieval config")
 
         cache_dir = resolve_local_model_cache_dir(sparse_config)
 
+        extra = {"cache_dir": cache_dir} if cache_dir else {}
+        if sparse_config.get("max_length"):
+            extra["max_length"] = sparse_config.get("max_length")
+
         return EmbeddingSpec(
             task="embedding",
-            runtime="fastembed",
+            runtime=runtime,
             provider="local",
             model=str(sparse_model),
             dimensions=None,
             normalize=False,
             batch_size=32,
             device=sparse_config.get("device"),
-            extra={"cache_dir": cache_dir} if cache_dir else {},
+            extra=extra,
             vector_type="sparse",
+            emits=list(sparse_config.get("emits") or []),
         )
 
     @staticmethod

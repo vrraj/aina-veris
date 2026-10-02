@@ -50,5 +50,7 @@ a2a-sdk[http-server]==1.1.2
 mcp==2.0.0
 timeseries-sparklines==0.1.2
 fastembed==0.8.0
+# BGE-M3 unified dense+sparse embeddings (local:m3_default / bgem3 runtime).
+FlagEmbedding==1.4.2
 # Docling PDF pipeline (POST /index-pdf-docling). Heavy: pulls torch stack.
 docling==2.125.0

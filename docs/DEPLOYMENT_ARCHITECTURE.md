@@ -145,6 +145,54 @@ GPU buys **speed, not memory** — Apple Silicon unified memory means MPS
 tensors come from the same RAM pool. The OOM mitigations stay relevant in
 every mode.
 
+## BGE-M3 single-pass embeddings (experimental)
+
+The default local stack runs **two** models per chunk: bge-base (dense,
+768-d, CoreML/ONNX) + SPLADE (sparse). An optional unified path replaces
+both with a single BGE-M3 forward pass via FlagEmbedding/PyTorch:
+
+```
+Stage A (indexing):  BGE-M3 one pass → dense (1024-d) + sparse
+                     → named vectors {"dense", "sparse"} in Qdrant
+
+Stage B (retrieval): dense+sparse prefetch → RRF fusion
+                     → optional ColBERTv2 MaxSim rescore (existing path)
+```
+
+**Why `m3`, not `hybrid`:** `hybrid` already names the dense+sparse *search
+mode* in domain config. The model entry is `local:m3_default`; the profile
+is `local-bgem3` (structurally `local-hybrid`, different default model key).
+`emits: [dense, sparse]` in `local_models_registry.yaml` declares the
+capability — when a domain's `embedding_model_key` resolves to an emits
+model, indexing makes one encode call per batch instead of two.
+
+**Why a separate collection:** M3 dense is 1024-d (vs 768) and its sparse
+vectors live in M3's own vocabulary — SPLADE query vectors are meaningless
+against them. `_sparse_embedding_spec()` resolves the sparse model from the
+domain's `embedding_model_key`, so M3-indexed collections are always
+queried with M3 sparse. The experiment domain is
+`semiconductor_datasheets_m3` → `document_index_semiconductor_datasheets_m3_v1`.
+
+**Why no stored ColBERT:** M3 also emits a ColBERT matrix — a 1024-d vector
+*per token*, ~1 MB/chunk, ~230 MB/doc. We don't store it; Stage-B rescoring
+reuses the existing ColBERTv2 MaxSim reranker (`use_colbert`), which
+re-encodes fused candidates at query time at zero storage cost.
+
+**Measured on Apple M2 (MPS):** ~0.25 s/text vs ~1.2 s/chunk for the
+bge-base+SPLADE pair — roughly 4–5× embedding throughput — plus 8,192-token
+context vs 512 (datasheet chunks no longer truncate). Costs: ~2.3 GB model
+download (cached at `${LOCAL_MODELS_CACHE_PATH}/flagembed_cache`), ~5 min
+cold load on first fetch, ~10 s warm load; the model participates in the
+same idle-TTL model cache.
+
+**Try it:** point a domain at `profile: local-bgem3` (or
+`embedding_model_key: local:m3_default`) in `domain_embedding_config.yaml`,
+then ingest via the normal Docling route. Requires `FlagEmbedding` (in
+`requirements.txt`); device auto-resolves `mps` → `cuda` → `cpu`, overridable
+via the spec's `device`. Docker users: FlagEmbedding pulls the PyTorch
+stack — the CPU-pinned wheels keep the image small, but there is no ONNX
+path for M3, so CoreML provider config does not apply to it.
+
 ## Known limitations
 
 - **No GPU inside Docker Desktop on macOS.** The Linux VM has no Metal

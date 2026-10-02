@@ -103,6 +103,22 @@ local_models:
     name: "prithivida/Splade_PP_en_v1"
     cache_dir: "${LOCAL_MODELS_CACHE_PATH}/fastembed_cache"
     # Dimensions for sparse are dynamic (vocab size ~30522)
+
+  # UNIFIED SINGLE-PASS: BGE-M3 emits dense + sparse (+ colbert head,
+  # unused today — rescoring runs through late_interaction/ColBERTv2) from
+  # one forward pass. Runs via FlagEmbedding/PyTorch — MPS on Apple Silicon.
+  # `emits` declares which vector types a single encode produces; when a
+  # domain's embedding_model_key resolves here, indexing does ONE encode per
+  # chunk instead of separate dense + sparse passes.
+  m3:
+    model_key: "local:m3_default"
+    name: "BAAI/bge-m3"
+    cache_dir: "${LOCAL_MODELS_CACHE_PATH}/flagembed_cache"
+    dimensions: 1024
+    distance: "Cosine"
+    runtime: "bgem3"
+    emits: [dense, sparse]
+    max_length: 8192
   
   # TIER 2: LATE INTERACTION (Token-level precision for symbols/code)
   late_interaction:

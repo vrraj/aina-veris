@@ -93,6 +93,15 @@ _DOMAIN_PROFILES: Dict[str, Dict[str, Any]] = {
         "vector_type": "hybrid",
         "search_mode": "hybrid",
     },
+    # BGE-M3 single-pass: one encode emits dense (1024-d) + sparse in M3's
+    # own vocab. Structurally identical to local-hybrid; the model key is
+    # what routes indexing/query through the unified bgem3 runtime.
+    "local-bgem3": {
+        "model_type": "local",
+        "embedding_model_key": "local:m3_default",
+        "vector_type": "hybrid",
+        "search_mode": "hybrid",
+    },
 }
 
 
@@ -109,7 +118,7 @@ class DomainEmbeddingEntry(BaseModel):
     # (collection_name) is always searched; these are searched alongside it.
     collections: Optional[List[DomainCollectionSpec]] = None
     profile: Optional[Literal[
-        "legacy-dense", "hosted-dense", "local-dense", "hosted-hybrid", "local-hybrid"
+        "legacy-dense", "hosted-dense", "local-dense", "hosted-hybrid", "local-hybrid", "local-bgem3"
     ]] = None
     embedding_model_key: Optional[str] = None
     model_type: Optional[Literal["hosted", "local"]] = None
