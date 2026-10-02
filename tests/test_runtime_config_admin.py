@@ -38,6 +38,14 @@ class TestRuntimeStatus:
         assert memory["process_rss_mb"] > 0
         assert isinstance(memory["model_caches"], list)
 
+        acceleration = memory["acceleration"]
+        assert acceleration["docling_device"] in ("auto", "cpu", "mps", "cuda", "xpu")
+        # providers key present on each resident-model entry (None when the
+        # model isn't an ONNX session, e.g. the Docling converter)
+        for cache in memory["model_caches"]:
+            for model in cache["models"]:
+                assert "providers" in model
+
 
 class TestApplyUpdates:
     def test_applies_value(self, restore_settings):

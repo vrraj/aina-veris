@@ -43,6 +43,27 @@ function renderMemory(memory) {
       cg ? `of ${fmtMb(cg.limit_mb)} cgroup cap` : "no cgroup limit"
     )
   );
+  const acc = memory.acceleration || {};
+  memoryCards.appendChild(
+    statCard(
+      "Docling device",
+      acc.docling_device || "auto",
+      acc.mps_available === true ? "MPS available" :
+      acc.mps_available === false ? "MPS unavailable" : "GPU state unknown"
+    )
+  );
+}
+
+function providerChips(providers) {
+  if (!providers || !providers.length) return '<span class="text-gray-400">—</span>';
+  return providers.map((p) => {
+    const short = p.replace("ExecutionProvider", "");
+    const gpu = /CoreML|CUDA|Tensorrt|ROCM/i.test(p);
+    const cls = gpu
+      ? "background:#dcfce7;color:#166534;"
+      : "background:#f3f4f6;color:#6b7280;";
+    return `<span class="badge" style="${cls}">${short}</span>`;
+  }).join(" ");
 }
 
 function renderTunables(tunables) {
@@ -106,7 +127,7 @@ function renderCaches(caches) {
       tr.innerHTML =
         `<td class="py-2 pr-4"><div>${c.name}</div><div class="text-xs">${c.description}</div></td>` +
         `<td class="py-2 pr-4">${c.idle_timeout_s}s</td>` +
-        `<td class="py-2 pr-4 italic">empty</td><td></td>`;
+        `<td class="py-2 pr-4 italic">empty</td><td></td><td></td>`;
       cachesBody.appendChild(tr);
       continue;
     }
@@ -121,6 +142,7 @@ function renderCaches(caches) {
       tr.innerHTML =
         head +
         `<td class="py-2 pr-4 mono text-xs" style="word-break:break-all">${m.key}</td>` +
+        `<td class="py-2 pr-4">${providerChips(m.providers)}</td>` +
         `<td class="py-2 text-gray-500">${m.idle_secs}s</td>`;
       cachesBody.appendChild(tr);
     });

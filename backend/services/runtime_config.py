@@ -157,7 +157,26 @@ def memory_status() -> Dict[str, Any]:
         logger.debug("model cache status unavailable: %s", exc)
         caches = []
 
+    # GPU context — reported, not tunable: device/provider choices bind at
+    # model load. torch may not be imported yet on a quiet process, so this
+    # is deliberately cheap when it isn't.
+    import sys as _sys
+
+    _torch = _sys.modules.get("torch")
+    mps_available = None
+    if _torch is not None:
+        try:
+            mps_available = bool(_torch.backends.mps.is_available())
+        except Exception:
+            mps_available = None
+
     return {
+        "acceleration": {
+            "docling_device": str(
+                getattr(settings, "pdf_docling_accelerator_device", "auto")
+            ),
+            "mps_available": mps_available,
+        },
         "system": {
             "total_mb": vm.total // (1024 * 1024),
             "available_mb": vm.available // (1024 * 1024),

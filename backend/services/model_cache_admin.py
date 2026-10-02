@@ -101,6 +101,19 @@ def _local_models(loaded: Dict[str, str]) -> list:
     return out
 
 
+def _providers_of(model: Any) -> Optional[list]:
+    """Best-effort: the ONNX Runtime providers a loaded fastembed model
+    actually bound (model.model is the InferenceSession)."""
+    try:
+        session = getattr(getattr(model, "model", None), "model", None)
+        get_providers = getattr(session, "get_providers", None)
+        if callable(get_providers):
+            return list(get_providers())
+    except Exception:
+        pass
+    return None
+
+
 def cache_status() -> Dict[str, Any]:
     """Snapshot every known model cache plus local-model locations."""
     caches = _caches()
@@ -115,7 +128,11 @@ def cache_status() -> Dict[str, Any]:
                 "description": desc,
                 "idle_timeout_s": stats["idle_timeout_s"],
                 "models": [
-                    {"key": str(key), "idle_secs": meta["idle_secs"]}
+                    {
+                        "key": str(key),
+                        "idle_secs": meta["idle_secs"],
+                        "providers": _providers_of(cache._cache.get(key, (None, 0))[0]),
+                    }
                     for key, meta in stats["models"].items()
                 ],
             }
