@@ -335,12 +335,15 @@ class QdrantDB:
             model_key = self.embedding_model_key
 
             if str(model_key).startswith("local:") or ":" not in str(model_key):
-                import os
                 from backend.retrieval.embedding_router import EmbeddingRouter
                 from backend.retrieval.schemas import EmbeddingSpec
-                from backend.retrieval.config_loader import get_model_config, get_model_config_by_key, resolve_local_model_cache_dir
+                from backend.retrieval.config_loader import (
+                    build_local_spec_extra,
+                    get_model_config,
+                    get_model_config_by_key,
+                    resolve_model_runtime,
+                )
 
-                dense_config = {}
                 local_model_name = str(model_key)
                 if str(model_key).startswith("local:"):
                     dense_config = get_model_config_by_key(str(model_key))
@@ -353,31 +356,23 @@ class QdrantDB:
                     except Exception:
                         dense_config = {}
 
-                cache_dir = resolve_local_model_cache_dir(dense_config)
-
                 try:
                     dims = int(dense_config.get("dimensions")) if dense_config.get("dimensions") is not None else None
                 except Exception:
                     dims = None
 
-                emits = dense_config.get("emits") or []
-                runtime = str(dense_config.get("runtime") or "fastembed") if emits else "fastembed"
-                extra = {"cache_dir": cache_dir} if cache_dir else {}
-                if dense_config.get("max_length"):
-                    extra["max_length"] = dense_config.get("max_length")
-
                 spec = EmbeddingSpec(
                     task="embedding",
-                    runtime=runtime,
+                    runtime=resolve_model_runtime(dense_config),
                     provider="local",
                     model=local_model_name,
                     dimensions=dims,
                     normalize=True,
                     batch_size=32,
                     device=dense_config.get("device"),
-                    extra=extra,
+                    extra=build_local_spec_extra(dense_config),
                     vector_type="dense",
-                    emits=list(emits),
+                    emits=list(dense_config.get("emits") or []),
                 )
 
                 embedding_result = EmbeddingRouter().embed([text], spec)
@@ -468,44 +463,26 @@ class QdrantDB:
         """
         from backend.retrieval.schemas import EmbeddingSpec
         from backend.retrieval.config_loader import (
-            get_model_config,
-            get_model_config_by_key,
-            resolve_local_model_cache_dir,
+            build_local_spec_extra,
+            resolve_domain_sparse_config,
+            resolve_model_runtime,
         )
 
-        sparse_config = None
-        runtime = "fastembed"
-        if str(self.embedding_model_key).startswith("local:"):
-            try:
-                local_cfg = get_model_config_by_key(self.embedding_model_key)
-                if "sparse" in (local_cfg.get("emits") or []):
-                    sparse_config = local_cfg
-                    runtime = str(local_cfg.get("runtime") or "bgem3")
-            except Exception:
-                pass
-        if sparse_config is None:
-            sparse_config = get_model_config("sparse")
-
+        sparse_config = resolve_domain_sparse_config(self.embedding_model_key)
         sparse_model = sparse_config.get("name")
         if not sparse_model:
             raise ValueError("Sparse model name missing from retrieval config")
 
-        cache_dir = resolve_local_model_cache_dir(sparse_config)
-
-        extra = {"cache_dir": cache_dir} if cache_dir else {}
-        if sparse_config.get("max_length"):
-            extra["max_length"] = sparse_config.get("max_length")
-
         return EmbeddingSpec(
             task="embedding",
-            runtime=runtime,
+            runtime=resolve_model_runtime(sparse_config),
             provider="local",
             model=str(sparse_model),
             dimensions=None,
             normalize=False,
             batch_size=32,
             device=sparse_config.get("device"),
-            extra=extra,
+            extra=build_local_spec_extra(sparse_config),
             vector_type="sparse",
             emits=list(sparse_config.get("emits") or []),
         )

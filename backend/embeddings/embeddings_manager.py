@@ -91,42 +91,31 @@ class EmbeddingsManager:
             return self._generate_embeddings_hosted(text)
 
     def _generate_embeddings_local(self, text: Any):
-        """Generate embeddings using local FastEmbed models."""
-        from backend.retrieval.config_loader import get_model_config, resolve_local_model_cache_dir
+        """Generate embeddings using local models for this domain's key."""
+        from backend.retrieval.config_loader import (
+            build_local_spec_extra,
+            resolve_domain_dense_config,
+            resolve_model_runtime,
+        )
         from backend.retrieval.embedding_router import EmbeddingRouter
         from backend.retrieval.schemas import EmbeddingSpec
-        
+
         is_batch = isinstance(text, list)
         texts_to_embed = text if is_batch else [text]
-        
-        # Get dense model configuration; a domain-scoped local model key
-        # (e.g. local:m3_default) overrides the global dense entry.
-        dense_config = get_model_config("dense")
-        if str(self.embedding_model_key).startswith("local:"):
-            from backend.retrieval.config_loader import get_model_config_by_key
-            try:
-                resolved = get_model_config_by_key(self.embedding_model_key)
-                if resolved.get("name"):
-                    dense_config = resolved
-            except Exception:
-                pass
 
-        emits = dense_config.get("emits") or []
-        runtime = str(dense_config.get("runtime") or "fastembed") if emits else "fastembed"
+        dense_config = resolve_domain_dense_config(self.embedding_model_key)
 
-        # Create embedding spec for dense
-        cache_dir = resolve_local_model_cache_dir(dense_config)
         spec = EmbeddingSpec(
             task="retrieval",
-            runtime=runtime,
+            runtime=resolve_model_runtime(dense_config),
             provider="fastembed",
             model=dense_config["name"],
             dimensions=dense_config.get("dimensions"),
             batch_size=32,
             device=dense_config.get("device"),
-            extra={"cache_dir": cache_dir},
+            extra=build_local_spec_extra(dense_config),
             vector_type="dense",
-            emits=list(emits),
+            emits=list(dense_config.get("emits") or []),
         )
         
         # Use embedding router
@@ -142,39 +131,31 @@ class EmbeddingsManager:
 
     def generate_sparse_embeddings(self, text: Any):
         """Generate sparse embeddings using local FastEmbed models for hybrid search."""
-        from backend.retrieval.config_loader import get_model_config, resolve_local_model_cache_dir
+        from backend.retrieval.config_loader import (
+            build_local_spec_extra,
+            resolve_domain_sparse_config,
+            resolve_model_runtime,
+        )
         from backend.retrieval.embedding_router import EmbeddingRouter
         from backend.retrieval.schemas import EmbeddingSpec
-        
+
         is_batch = isinstance(text, list)
         texts_to_embed = text if is_batch else [text]
-        
-        # Get sparse model configuration; sparse vectors are vocabulary-bound
-        # to their model, so a domain indexed by a unified emits=sparse model
-        # (e.g. BGE-M3) must produce sparse with that same model.
-        sparse_config = get_model_config("sparse")
-        runtime = "fastembed"
-        if str(self.embedding_model_key).startswith("local:"):
-            from backend.retrieval.config_loader import get_model_config_by_key
-            try:
-                local_cfg = get_model_config_by_key(self.embedding_model_key)
-                if "sparse" in (local_cfg.get("emits") or []) and local_cfg.get("name"):
-                    sparse_config = local_cfg
-                    runtime = str(local_cfg.get("runtime") or "bgem3")
-            except Exception:
-                pass
 
-        # Create embedding spec for sparse
-        cache_dir = resolve_local_model_cache_dir(sparse_config)
+        # Sparse vectors are vocabulary-bound to their model: a domain
+        # indexed by a unified emits=sparse model (e.g. BGE-M3) must produce
+        # sparse with that same model.
+        sparse_config = resolve_domain_sparse_config(self.embedding_model_key)
+
         spec = EmbeddingSpec(
             task="retrieval",
-            runtime=runtime,
+            runtime=resolve_model_runtime(sparse_config),
             provider="fastembed",
             model=sparse_config["name"],
             dimensions=None,  # Sparse embeddings don't have fixed dimensions
             batch_size=32,
             device=sparse_config.get("device"),
-            extra={"cache_dir": cache_dir},
+            extra=build_local_spec_extra(sparse_config),
             vector_type="sparse",
             emits=list(sparse_config.get("emits") or []),
         )

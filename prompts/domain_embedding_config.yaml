@@ -73,7 +73,7 @@ domains:
   # dense, M3 lexical sparse — different vocab from SPLADE, so this domain
   # must use its own collection). Retrieval stage B stays ColBERTv2.
   semiconductor_datasheets_m3:
-    collection_name: document_index_semiconductor_datasheets_m3_v1
+    collection_name: semi_datasheets_m3_docling_v1
     profile: local-bgem3
     embedding_model_key: local:m3_default
     model_type: local

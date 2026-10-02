@@ -171,7 +171,7 @@ vectors live in M3's own vocabulary — SPLADE query vectors are meaningless
 against them. `_sparse_embedding_spec()` resolves the sparse model from the
 domain's `embedding_model_key`, so M3-indexed collections are always
 queried with M3 sparse. The experiment domain is
-`semiconductor_datasheets_m3` → `document_index_semiconductor_datasheets_m3_v1`.
+`semiconductor_datasheets_m3` → `semi_datasheets_m3_docling_v1`.
 
 **Why no stored ColBERT:** M3 also emits a ColBERT matrix — a 1024-d vector
 *per token*, ~1 MB/chunk, ~230 MB/doc. We don't store it; Stage-B rescoring

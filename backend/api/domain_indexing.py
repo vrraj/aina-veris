@@ -14,7 +14,7 @@ from backend.core import settings
 from backend.db import QdrantDB
 from backend.llm.llm_client import get_model_info, get_pricing_for_model
 from backend.retrieval.config import resolve_retrieval_specs
-from backend.retrieval.config_loader import get_model_config, get_model_config_by_key
+from backend.retrieval.config_loader import get_model_config, get_model_config_by_key, resolve_model_runtime
 from backend.retrieval.embedding_router import EmbeddingRouter
 from backend.retrieval.schemas import EmbeddingResult, EmbeddingSpec
 
@@ -122,11 +122,7 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
             dimensions = resolved_local_cfg.get("dimensions") or emb_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
         else:
             dimensions = emb_cfg.get("dimensions") or resolved_local_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
-        runtime = (
-            str(resolved_local_cfg.get("runtime"))
-            if emits and resolved_local_cfg.get("runtime")
-            else emb_cfg.get("runtime", "fastembed")
-        )
+        runtime = resolve_model_runtime(resolved_local_cfg, default=emb_cfg.get("runtime", "fastembed"))
         return {
             "runtime": runtime,
             "provider": "local",
