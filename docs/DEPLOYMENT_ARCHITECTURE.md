@@ -145,6 +145,58 @@ GPU buys **speed, not memory** — Apple Silicon unified memory means MPS
 tensors come from the same RAM pool. The OOM mitigations stay relevant in
 every mode.
 
+## Model cache lifecycle — how RAM is managed
+
+All heavyweight local models share one eviction mechanism:
+`TTLModelCache` (`backend/retrieval/model_cache.py`), a process-wide
+per-model idle cache.
+
+**What lives in it**
+
+| Cache label | Holds | TTL knob | Default |
+| --- | --- | --- | --- |
+| `retrieval` | Dense + sparse embedding models (BGE-M3 / bge-base + SPLADE), ColBERT, cross-encoder | `MODEL_CACHE_IDLE_TTL_SECONDS` | 300 s |
+| `ingestion` | The Docling `DocumentConverter` (layout-heron + TableFormer + OCR + caption VLM) | `INGESTION_MODEL_CACHE_IDLE_TTL_SECONDS` | 900 s |
+
+**Lifecycle of one model entry**
+
+```
+first get()          model loads (device bound here — see GPU table),
+                     timestamp = now
+each get()           timestamp refreshed → an actively-used model
+                     NEVER evicts, even mid-conversation
+idle > TTL           entry dropped, gc.collect() frees ONNX/PyTorch RAM
+next get()           cold reload (~1–3 s ONNX, ~10 s BGE-M3, ~30 s+ Docling)
+```
+
+**The sweep mechanics (why eviction actually happens).** Eviction is
+decided per-model by *last-use time* — never by system traffic. Two
+triggers run it:
+
+- **Timer** — every live cache registers itself in a shared `WeakSet`;
+  one daemon thread sweeps all caches every 60 s, so an idle model
+  releases RAM at TTL expiry *even if zero requests ever arrive*.
+- **On access** — each `get()` also sweeps first, so stale sibling models
+  (e.g. a model you switched away from) are dropped opportunistically.
+
+Setting a TTL to `0` disables eviction — the model stays resident for
+the process lifetime.
+
+**Runtime operations.** The TTLs are live-tunable on **Admin → Veris
+Configuration** (`/veris-config.html`): a change propagates into running
+caches via `set_idle_timeout_for_label`, so no restart is needed. The
+**Models** page (`/models.html`, backed by `model_cache_admin.py`)
+lists every resident model with its bound accelerator/provider, and can
+`eject` a single entry (immediate unload) or `reload` it (evict + reload
+with the recorded loader — e.g. to pick up a changed provider config
+without restarting).
+
+**Why two TTLs.** Embedding models serve queries *and* indexing, reload
+in seconds, and sit between conversational bursts — a short TTL is safe.
+The Docling converter is ingestion-only and costs 10–60 s to rebuild, so
+it gets a longer window to survive the gap between batch jobs — but it
+still unloads on the timer when ingest stops entirely.
+
 ## BGE-M3 single-pass embeddings (experimental)
 
 The default local stack runs **two** models per chunk: bge-base (dense,
