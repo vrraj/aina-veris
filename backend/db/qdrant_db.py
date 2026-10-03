@@ -3,6 +3,7 @@ from qdrant_client.http.models import Filter, FieldCondition, MatchValue, Batch,
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from backend.core.schemas import PayloadUpdateRequest
+import copy
 import logging
 from backend.core.config import settings
 from backend.llm.llm_client import embed, get_model_info
@@ -34,7 +35,7 @@ class QdrantDB:
         # domain.  A request can explicitly target another domain.
         self.vector_type = vector_type if vector_type is not None else settings.vector_type
         self.last_embedding_usage: Dict[str, int] = {"input_tokens": 0, "total_tokens": 0}
-        
+
         # Ensure target exists. Use get_collection so aliases resolve correctly.
         try:
             self.client.get_collection(collection_name)
@@ -110,6 +111,17 @@ class QdrantDB:
                 raise
 
     
+    def for_collection(self, collection_name: str) -> "QdrantDB":
+        """Shallow view of this handle bound to another collection.
+
+        Shares the client connection and embedding stack. Unlike
+        __init__, this does NOT ensure the collection exists — used for
+        searching additional domain shards that are known to exist.
+        """
+        view = copy.copy(self)
+        view.collection_name = collection_name
+        return view
+
     def _build_filter(self, query_filter: Optional[Dict]) -> Optional[models.Filter]:
         """Translate a simple dict (e.g., {"url": "...", "source": "..."})
         into a Qdrant Filter. Special-case: `url` maps to `url_lower` and is
@@ -323,12 +335,15 @@ class QdrantDB:
             model_key = self.embedding_model_key
 
             if str(model_key).startswith("local:") or ":" not in str(model_key):
-                import os
                 from backend.retrieval.embedding_router import EmbeddingRouter
                 from backend.retrieval.schemas import EmbeddingSpec
-                from backend.retrieval.config_loader import get_model_config, get_model_config_by_key, resolve_local_model_cache_dir
+                from backend.retrieval.config_loader import (
+                    build_local_spec_extra,
+                    get_model_config,
+                    get_model_config_by_key,
+                    resolve_model_runtime,
+                )
 
-                dense_config = {}
                 local_model_name = str(model_key)
                 if str(model_key).startswith("local:"):
                     dense_config = get_model_config_by_key(str(model_key))
@@ -341,8 +356,6 @@ class QdrantDB:
                     except Exception:
                         dense_config = {}
 
-                cache_dir = resolve_local_model_cache_dir(dense_config)
-
                 try:
                     dims = int(dense_config.get("dimensions")) if dense_config.get("dimensions") is not None else None
                 except Exception:
@@ -350,15 +363,16 @@ class QdrantDB:
 
                 spec = EmbeddingSpec(
                     task="embedding",
-                    runtime="fastembed",
+                    runtime=resolve_model_runtime(dense_config),
                     provider="local",
                     model=local_model_name,
                     dimensions=dims,
                     normalize=True,
                     batch_size=32,
                     device=dense_config.get("device"),
-                    extra={"cache_dir": cache_dir} if cache_dir else {},
+                    extra=build_local_spec_extra(dense_config),
                     vector_type="dense",
+                    emits=list(dense_config.get("emits") or []),
                 )
 
                 embedding_result = EmbeddingRouter().embed([text], spec)
@@ -439,49 +453,79 @@ class QdrantDB:
             self.last_embedding_usage = {"input_tokens": 0, "total_tokens": 0}
             raise
 
+    def _sparse_embedding_spec(self):
+        """EmbeddingSpec for the sparse model matching this domain.
+
+        Sparse vectors are vocabulary-bound to the model that produced them.
+        Domains indexed by a unified model (e.g. BGE-M3 emits=sparse) must
+        query sparse with the SAME model — falling back to the global SPLADE
+        config would silently produce incompatible vectors.
+        """
+        from backend.retrieval.schemas import EmbeddingSpec
+        from backend.retrieval.config_loader import (
+            build_local_spec_extra,
+            resolve_domain_sparse_config,
+            resolve_model_runtime,
+        )
+
+        sparse_config = resolve_domain_sparse_config(self.embedding_model_key)
+        sparse_model = sparse_config.get("name")
+        if not sparse_model:
+            raise ValueError("Sparse model name missing from retrieval config")
+
+        return EmbeddingSpec(
+            task="embedding",
+            runtime=resolve_model_runtime(sparse_config),
+            provider="local",
+            model=str(sparse_model),
+            dimensions=None,
+            normalize=False,
+            batch_size=32,
+            device=sparse_config.get("device"),
+            extra=build_local_spec_extra(sparse_config),
+            vector_type="sparse",
+            emits=list(sparse_config.get("emits") or []),
+        )
+
+    @staticmethod
+    def _sparse_vector_to_dict(sparse_vector) -> Dict[str, List[float]]:
+        if not isinstance(sparse_vector, dict):
+            return {"indices": [], "values": []}
+        return {
+            "indices": sparse_vector.get("indices") or [],
+            "values": sparse_vector.get("values") or [],
+        }
+
     def generate_sparse_embeddings(self, text: str) -> Dict[str, List[float]]:
         """Generate sparse query embeddings for hybrid retrieval."""
         try:
-            import os
             from backend.retrieval.embedding_router import EmbeddingRouter
-            from backend.retrieval.schemas import EmbeddingSpec
-            from backend.retrieval.config_loader import get_model_config, resolve_local_model_cache_dir
 
-            sparse_config = get_model_config("sparse")
-            sparse_model = sparse_config.get("name")
-            if not sparse_model:
-                raise ValueError("Sparse model name missing from retrieval config")
-
-            cache_dir = resolve_local_model_cache_dir(sparse_config)
-
-            spec = EmbeddingSpec(
-                task="embedding",
-                runtime="fastembed",
-                provider="local",
-                model=str(sparse_model),
-                dimensions=None,
-                normalize=False,
-                batch_size=32,
-                device=sparse_config.get("device"),
-                extra={"cache_dir": cache_dir} if cache_dir else {},
-                vector_type="sparse",
-            )
-
-            embedding_result = EmbeddingRouter().embed([text], spec)
+            embedding_result = EmbeddingRouter().embed([text], self._sparse_embedding_spec())
             vectors = embedding_result.vectors or []
             if not vectors:
                 return {"indices": [], "values": []}
-
-            sparse_vector = vectors[0]
-            if not isinstance(sparse_vector, dict):
-                return {"indices": [], "values": []}
-
-            return {
-                "indices": sparse_vector.get("indices") or [],
-                "values": sparse_vector.get("values") or [],
-            }
+            return self._sparse_vector_to_dict(vectors[0])
         except Exception as e:
             logger.exception("Error generating sparse embeddings: %s", e)
+            raise
+
+    def generate_sparse_embeddings_batch(self, texts: List[str]) -> List[Dict[str, List[float]]]:
+        """Generate sparse embeddings for a batch of texts in one model call.
+
+        Returns one {"indices", "values"} dict per input text, order-aligned;
+        missing results are padded with empty vectors.
+        """
+        try:
+            from backend.retrieval.embedding_router import EmbeddingRouter
+
+            embedding_result = EmbeddingRouter().embed(list(texts), self._sparse_embedding_spec())
+            vectors = embedding_result.vectors or []
+            out = [self._sparse_vector_to_dict(v) for v in vectors]
+            out.extend({"indices": [], "values": []} for _ in range(len(texts) - len(out)))
+            return out
+        except Exception as e:
+            logger.exception("Error generating batch sparse embeddings: %s", e)
             raise
             
     def search_similar(

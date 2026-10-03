@@ -110,9 +110,10 @@ request is represented in the final grounded answer.
 
 ## Shared Runtime, Different Research Domains
 
-Each domain maintains its own **knowledge collection, embedding configuration,
-retrieval strategy, prompts, and model configuration** while using the same
-research pipeline and integration surfaces.
+Each domain maintains its own **knowledge base — one or more Qdrant collection
+shards — plus embedding configuration, retrieval strategy, prompts, and model
+configuration** while using the same research pipeline and integration
+surfaces.
 
 Aina-Veris research capabilities can be accessed through **A2A, MCP,
 REST/OpenAPI, the Web UI, and embeddable chat**.
@@ -134,7 +135,7 @@ individual pipeline stages**.
 
 Aina-Veris separates the interfaces used to invoke research from the runtime that executes it.
 
-- **Domain-isolated knowledge** — each domain can use its own Qdrant collection, embedding configuration, prompts, and retrieval policy.
+- **Domain-isolated knowledge** — each domain can use its own Qdrant collection or shard set, embedding configuration, prompts, and retrieval policy.
 - **Multiple integration surfaces** — A2A, MCP, REST, SSE, and embeddable chat use the shared research runtime.
 - **Balanced answers to multi-part questions** — optional query splitting and retrieval controls help prevent one part of a question from overshadowing the rest.
 - **Tool-assisted inference** — local tools, external MCP servers, and REST-backed capabilities can participate in research.
@@ -175,8 +176,8 @@ can use a faster path.
 Bring a domain's source material into Aina-Veris so agents and applications can
 retrieve it as cited evidence. Index individual PDFs, URLs, MediaWiki pages, or
 application-supplied documents; use batch ingestion to plan and process larger
-source sets. The domain configuration determines the collection, embedding
-path, and retrieval policy used once that knowledge base is queried.
+source sets. The domain configuration determines the collection shards,
+embedding path, and retrieval policy used once that knowledge base is queried.
 
 <p align="center">
   <img src="images/aina-veris-ingestion-pipeline.png" style="max-width: 100%; height: auto;" alt="Aina-Veris ingestion pipeline showing individual and batch source ingestion, metadata-preserving processing, domain-aware indexing, and Qdrant domain collections" />
@@ -192,9 +193,9 @@ registries**.
   source manifest after estimating chunks and cost.
 - **Evidence-preserving processing** — Retain source, document title, section,
   and document-type metadata while parsing and chunking content.
-- **Domain-aware indexing** — The domain configuration selects the collection,
-  embedding model, vector type, and retrieval path for the resulting knowledge
-  base.
+- **Domain-aware indexing** — The domain configuration selects the collection
+  shard, embedding model, vector type, and retrieval path for the resulting
+  knowledge base.
 
 <p align="center">
   <img src="images/aina-veris-content-ingestion.png" width="100%" alt="Aina-Veris Web UI showing domain-aware content ingestion, knowledge-base management, retrieval evaluation, and prompt, tool, and domain configuration registries" />
@@ -204,14 +205,23 @@ registries**.
 
 The ingestion endpoints accept different source shapes but feed one pipeline:
 parse the source, preserve useful metadata, chunk the content, create the
-configured vectors, and store them in the selected domain collection.
+configured vectors, and store them in the shard the ingestion pipeline owns.
 
 | Source | Endpoint | Use |
 |---|---|---|
 | URL or HTML | `POST /index` | Index a web page or fetched document. |
 | Uploaded PDF | `POST /pdf` | Parse and index a PDF. |
+| Complex PDF (datasheets) | `POST /index-pdf-docling` | Docling pipeline with layout analysis, TableFormer tables, and per-item provenance into a dedicated `*_docling_v1` shard — searched alongside the primary collection when declared in the domain's `collections` list. |
 | MediaWiki page | `POST /mediawiki/url` | Retrieve and index a MediaWiki article. |
 | Supplied document | `POST /embed` | Index content provided directly by an application. |
+
+The Docling path runs on CPU by default (`PDF_DOCLING_ACCELERATOR_DEVICE`,
+`PDF_DOCLING_NUM_THREADS` control device/threads; GPU needs the CUDA PyTorch
+build). An opt-in picture-description stage
+(`PDF_DOCLING_PICTURE_DESCRIPTION`) sends detected figures to a captioning
+VLM so diagrams are searchable. See
+[RAG_INDEXING_AND_CITATION_STRATEGY.md](RAG_INDEXING_AND_CITATION_STRATEGY.md) for the full
+configuration table.
 
 ### Batch ingestion
 
@@ -220,6 +230,10 @@ file such as `scripts/batch/input/sample_batch_input.json`. Its estimate mode
 plans chunks and cost before indexing; run it with `--no-estimate` only when
 ready to process the sources.
 
+PDF items select an ingestion pipeline via `"pipeline"`: set a batch-level
+default (`"pymupdf"`, the default, or `"docling"` for datasheet-style PDFs)
+and override it per item — same fallback pattern as `active_domain`.
+
 ### Domain configuration
 
 A **domain** keeps a knowledge base and its retrieval policy together. Its
@@ -227,6 +241,60 @@ definition in `prompts/domain_embedding_config.yaml` names the Qdrant
 collection, embedding model, vector type, and search mode. Prompt instructions
 inherit global research and citation rules, with optional domain-specific
 overrides in `prompts/prompt_registry.yaml`.
+
+The simplest way to configure a domain is a `profile` shorthand — only
+`collection_name` and `profile` are required:
+
+```yaml
+domains:
+  my_domain:
+    collection_name: document_index_my_domain
+    profile: local-hybrid
+```
+
+**Multi-pipeline domains.** A domain can also span **multiple collection
+shards** — one per ingestion pipeline — so a corpus indexed through different
+extractors is searched as one knowledge base. Declare extra shards with
+`collections`; every existing shard is queried per its own vector layout and
+the candidates are merged with reciprocal-rank fusion:
+
+```yaml
+domains:
+  semiconductor_datasheets:
+    collection_name: document_index_semi_ds   # primary shard (e.g. /pdf)
+    profile: local-hybrid
+    collections:
+      - name: document_index_semi_ds_docling_v1
+        pipeline: docling
+```
+
+Indexing keeps each document in exactly one shard: re-ingesting a document
+through a different pipeline refuses unless `force_delete=true`, which migrates
+it. Declared shards are created lazily on first index. See
+[Domain shards](RAG_INDEXING_AND_CITATION_STRATEGY.md#domain-shards-multi-collection-domains)
+for the full rules.
+
+| `profile` | Expands to | When to use |
+|---|---|---|
+| `local-hybrid` | local BGE dense + local SPLADE sparse, RRF-fused | Best recall for technical documents (part numbers, units, exact terms). No API key needed. |
+| `local-bgem3` | BGE-M3 single pass → dense (1024-d) + sparse, RRF-fused | Experimental unified encoder — one model call instead of two, 8k context. Own collection; PyTorch/MPS (not ONNX). |
+| `local-dense` | local BGE dense (768-dim) only | Free/offline semantic search, no sparse index — smaller footprint. |
+| `hosted-dense` | hosted dense, named vector (`openai:embed_small` by default) | New hosted collections; needs a hosted API key. |
+| `hosted-hybrid` | hosted dense + local SPLADE sparse, RRF-fused | Hosted dense quality plus local lexical matching; the sparse model still runs locally. |
+| `legacy-dense` | hosted dense, legacy unnamed-vector format | Existing collections indexed before named vectors existed. |
+
+A profile fills `model_type`, `vector_type`, `search_mode`, and a default
+`embedding_model_key`. You can still write the fields explicitly instead of a
+profile — or override only `embedding_model_key` alongside a profile (for
+example `gemini:native-embed` under a hosted profile). Structural fields that
+conflict with a profile are rejected at startup.
+
+Rules that apply to every entry:
+
+- `vector_type: hybrid` pairs only with `search_mode: hybrid`; `dense`/unset vector types pair only with `search_mode: dense`. Sparse indexes exist only on hybrid collections.
+- Sparse vectors are vocabulary-bound to their producing model. Domains default to the local SPLADE model (`local:sparse_default`), even for `hosted` domains — but a domain on a unified `emits`-model such as `local:m3_default` generates sparse with that model instead, so index and query always share a vocabulary.
+- `legacy-dense` exists only for backward compatibility with pre-named-vector collections; prefer `hosted-dense`, `local-dense`, or `local-hybrid` for new domains.
+- Keep `collection_name` permanently paired with its embedding model (see re-indexing note below).
 
 Changing an embedding model, vector shape, chunking policy, or collection
 requires re-indexing the affected corpus. Qdrant fixes a collection's dense
@@ -387,7 +455,7 @@ Aina-Veris supports configurable models for:
 - reranking
 - final generation
 
-Hosted and local components can be combined by stage. Local FastEmbed-backed components support dense, sparse, late-interaction, and reranking paths.
+Hosted and local components can be combined by stage. Local FastEmbed-backed components support dense, sparse, late-interaction, and reranking paths; a FlagEmbedding-backed BGE-M3 runtime (`local:m3_default`, `local-bgem3` profile) emits dense + sparse in one pass — see [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md#bge-m3-single-pass-embeddings-experimental).
 
 ### Registry-driven runtime
 
@@ -462,7 +530,9 @@ dependencies. When it completes, open [http://localhost:8100](http://localhost:8
 
 Domains configured with `model_type: local` use ONNX models via FastEmbed
 for dense, sparse, and late-interaction (ColBERT) embeddings, plus a
-cross-encoder reranker. These models are loaded on demand and evicted
+cross-encoder reranker. The optional BGE-M3 unified path (`local-bgem3`
+profile) runs through FlagEmbedding/PyTorch instead — MPS on Apple Silicon.
+These models are loaded on demand and evicted
 from memory after a configurable idle timeout.
 
 **How it works:**
@@ -495,6 +565,7 @@ actively serving requests stay resident.
 | `bge-small-en-v1.5` | 64 MB | Dense embeddings (local domains) |
 | `bge-base-en-v1.5` | 208 MB | Dense embeddings (local domains) |
 | `Splade_PP_en_v1` | 508 MB | Sparse embeddings (hybrid domains) |
+| `bge-m3` | ~2.3 GB | Unified dense + sparse (`local-bgem3` domains) |
 | `colbertv2.0` | 416 MB | Late-interaction retrieval eval |
 | `bge-reranker-base` | 1.1 GB | Cross-encoder reranking |
 
@@ -616,7 +687,7 @@ of the available evaluation controls and outputs.**
   <img src="images/aina-veris-retrieval-evals.png" width="100%" alt="Aina-Veris retrieval evaluation workbench showing retrieval configuration, reranking, subquery coverage, and compound-query decomposition" />
 </p>
 
-[Retrieval evaluation guide →](docs/retrieval-evals.md)
+[Retrieval evaluation guide →](docs/retrieval-evals.md) · [Retrieval evaluations usage guide →](retrieval-evaluations-usage-guide.md)
 
 ## Interfaces and Documentation
 
@@ -627,7 +698,7 @@ of the available evaluation controls and outputs.**
 | **A2A research agents** | [A2A integration guide](README_A2A.md) |
 | **MCP tools and registry** | [MCP specification](docs/mcp_specs.md) · [Tool registry guide](docs/tool_registry.md) |
 | **Retrieval tuning** | [Retrieval evaluation guide](docs/retrieval-evals.md) · [Compound queries](docs/compound-queries.md) |
-| **Operations and deployment** | [Security](SECURITY.md) · [Development](docs/development.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) |
+| **Operations and deployment** | [Security](SECURITY.md) · [Development](docs/development.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md) · [Deployment modes & GPU](docs/DEPLOYMENT_ARCHITECTURE.md) |
 
 ## Further Reading
 
@@ -651,10 +722,12 @@ deployment guidance, including MCP authorization and metadata requirements.
 
 ```bash
 # Application lifecycle
-make start
+make start          # all containers (CPU; macOS Docker has no GPU access)
 make rebuild
 make stop
-make start-debug
+make start-hybrid   # app in .venv + Qdrant in Docker — the macOS GPU path (MPS/CoreML)
+make stop-hybrid
+make start-debug    # venv, foreground, auto-reload
 
 # Qdrant operations
 make qdrant-status

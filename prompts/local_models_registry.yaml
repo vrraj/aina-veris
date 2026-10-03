@@ -39,7 +39,13 @@ retrieval:
       normalize: true
       batch_size: 32
       device: cpu
-      extra: {}
+      extra:
+        # ONNX Runtime execution providers, tried in order. CoreML routes
+        # dense+sparse embedding to the Apple GPU/ANE when running natively
+        # (make start-hybrid); it is absent in Linux containers and ORT
+        # warns then falls through to CPU. Linux+NVIDIA: swap in
+        # CUDAExecutionProvider with the onnxruntime-gpu package.
+        providers: [CoreMLExecutionProvider, CPUExecutionProvider]
     rerank:
       task: rerank
       enabled: true
@@ -67,7 +73,8 @@ retrieval:
         normalize: true
         batch_size: 32
         device: cpu
-        extra: {}
+        extra:
+          providers: [CoreMLExecutionProvider, CPUExecutionProvider]
       rerank:
         task: rerank
         enabled: true
@@ -96,6 +103,25 @@ local_models:
     name: "prithivida/Splade_PP_en_v1"
     cache_dir: "${LOCAL_MODELS_CACHE_PATH}/fastembed_cache"
     # Dimensions for sparse are dynamic (vocab size ~30522)
+
+  # UNIFIED SINGLE-PASS: BGE-M3 emits dense + sparse (+ colbert head,
+  # unused today — rescoring runs through late_interaction/ColBERTv2) from
+  # one forward pass. Runs via FlagEmbedding/PyTorch — MPS on Apple Silicon.
+  # `emits` declares which vector types a single encode produces; when a
+  # domain's embedding_model_key resolves here, indexing does ONE encode per
+  # chunk instead of separate dense + sparse passes.
+  m3:
+    model_key: "local:m3_default"
+    name: "BAAI/bge-m3"
+    cache_dir: "${LOCAL_MODELS_CACHE_PATH}/flagembed_cache"
+    dimensions: 1024
+    distance: "Cosine"
+    runtime: "bgem3"
+    emits: [dense, sparse]
+    max_length: 8192
+    batch_size: 64
+    # device: cpu        # pin a device; absent → auto (mps > cuda > cpu)
+    # use_fp16: true     # optional: half precision on GPU devices
   
   # TIER 2: LATE INTERACTION (Token-level precision for symbols/code)
   late_interaction:

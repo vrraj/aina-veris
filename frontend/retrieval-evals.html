@@ -21,6 +21,13 @@
     <hr class="border-gray-200 mb-4">
     <h1 class="text-3xl font-semibold mb-6">Retrieval Evals (Dense / Sparse / Hybrid + ColBERT + Cross Encoder)</h1>
 
+    <div class="index-tabs mb-4" role="tablist" aria-label="Retrieval evaluation modes">
+      <button class="index-tab index-tab-active" type="button" role="tab" aria-selected="true" aria-controls="eval-panel-query" data-eval-tab="query">Query Evaluation</button>
+      <button class="index-tab" type="button" role="tab" aria-selected="false" aria-controls="eval-panel-runs" data-eval-tab="runs">Evaluations</button>
+      <button class="index-tab" type="button" role="tab" aria-selected="false" aria-controls="eval-panel-datasets" data-eval-tab="datasets">Datasets</button>
+    </div>
+
+    <div id="eval-panel-query" data-eval-panel="query" role="tabpanel">
     <div class="bg-white rounded-lg shadow p-6">
       <form id="retrievalEvalForm" class="space-y-4">
         <section class="border rounded p-4 space-y-4">
@@ -187,8 +194,90 @@
         </div>
       </section>
     </div>
+    </div><!-- /eval-panel-query -->
+
+    <div id="eval-panel-runs" data-eval-panel="runs" role="tabpanel" hidden>
+      <div class="bg-white rounded-lg shadow p-6 space-y-4">
+        <h2 class="text-lg font-semibold text-gray-900">Run a labeled dataset across domains</h2>
+        <p class="text-sm text-gray-600">Runs every query in the dataset against each selected domain with the retrieval settings below, then judges hits against the labeled expectations.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Dataset</label>
+            <select id="runSetDataset" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Search Mode</label>
+            <select id="runSetSearchMode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+              <option value="hybrid" selected>hybrid</option>
+              <option value="dense">dense</option>
+              <option value="sparse">sparse</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Top-K</label>
+            <input id="runSetTopK" type="number" min="1" value="8" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Domains (select one or more)</label>
+          <div id="runSetDomains" class="mt-1 grid grid-cols-1 md:grid-cols-3 gap-1 text-sm"></div>
+        </div>
+        <div class="flex items-center gap-6">
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700"><input id="runSetSplit" type="checkbox"> Split Compound Query</label>
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700"><input id="runSetCrossEncoder" type="checkbox" checked> Cross-Encoder Rerank</label>
+          <label class="flex items-center gap-2 text-sm font-medium text-gray-700"><input id="runSetExact" type="checkbox"> Exact Match</label>
+        </div>
+        <button type="button" id="runSetBtn" class="w-full py-2 px-4 rounded-md">Run Evaluation Set</button>
+        <div id="runSetStatus" class="text-sm text-gray-600"></div>
+        <div id="runSetResults" class="space-y-4"></div>
+      </div>
+    </div><!-- /eval-panel-runs -->
+
+    <div id="eval-panel-datasets" data-eval-panel="datasets" role="tabpanel" hidden>
+      <div class="bg-white rounded-lg shadow p-6 space-y-4">
+        <h2 class="text-lg font-semibold text-gray-900">Evaluation datasets</h2>
+        <p class="text-sm text-gray-600">Labeled queries stored as YAML under <code>evals/</code>. <em>expected_document</em> is a substring match on the hit's source/url/document_id; <em>must_contain</em> strings are substring-matched on chunk text.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Dataset</label>
+            <select id="datasetSelect" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Name (for new/save-as)</label>
+            <input id="datasetName" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="my_eval_set">
+          </div>
+          <div class="flex gap-2">
+            <button type="button" id="datasetNewBtn" class="px-3 py-2 rounded-md border border-gray-300">New</button>
+            <button type="button" id="datasetSaveBtn" class="px-3 py-2 rounded-md">Save</button>
+            <button type="button" id="datasetDeleteBtn" class="px-3 py-2 rounded-md border border-red-300 text-red-700">Delete</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Description</label>
+          <input id="datasetDescription" type="text" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="collection-table w-full text-sm" id="datasetTable">
+            <thead>
+              <tr>
+                <th class="text-left">Query</th>
+                <th class="text-left">Expected document</th>
+                <th class="text-left">Page</th>
+                <th class="text-left">Must contain (comma-separated)</th>
+                <th class="text-left">Mode</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="datasetRows"></tbody>
+          </table>
+        </div>
+        <button type="button" id="datasetAddRowBtn" class="px-3 py-2 rounded-md border border-gray-300">+ Add query</button>
+        <div id="datasetStatus" class="text-sm text-gray-600"></div>
+      </div>
+    </div><!-- /eval-panel-datasets -->
   </div>
 
   <script src="/static/retrieval-evals.js"></script>
+  <script src="/static/retrieval-evals-sets.js"></script>
 </body>
 </html>

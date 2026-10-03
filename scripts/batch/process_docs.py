@@ -21,12 +21,16 @@ Input Format (JSON):
             "doc_type": "html|pdf|mediawiki",
             "skip_sections": ["References", "External links"],
             "user_agent": "Custom User Agent (optional)",
-            "api_url": "Custom API URL (for MediaWiki, optional)"
+            "api_url": "Custom API URL (for MediaWiki, optional)",
+            "pipeline": "pymupdf|docling (pdf items only, optional per-item override)",
+            "active_domain": "domain name (optional per-item override)"
         }
     ],
     "max_chunks": 100,          // Optional: Limit chunks per document
     "estimate": true,           // Optional: Run in estimation mode
-    "force_delete": false       // Optional: Force re-indexing
+    "force_delete": false,      // Optional: Force re-indexing
+    "pipeline": "pymupdf",      // Optional: default pipeline for pdf items
+    "active_domain": ""         // Optional: default domain for all items
 }
 
 Usage:
@@ -212,12 +216,17 @@ def process_batch(
         print(f"Error reading input file {input_file}: {e}")
         sys.exit(1)
 
-    # Prepare request data
+    # Prepare request data — forward batch-level defaults the API understands
+    # (pipeline routing for pdf items, shared active_domain) so they reach
+    # each per-item request below.
     request_data = {
         "items": input_data.get("items", []),
         "estimate": estimate,
         "force_delete": force_delete,
     }
+    for key in ("pipeline", "active_domain"):
+        if input_data.get(key) is not None:
+            request_data[key] = input_data[key]
     
     if max_chunks is not None:
         request_data["max_chunks"] = max_chunks
@@ -249,6 +258,9 @@ def process_batch(
                 "force_delete": force_delete,
                 "max_chunks": request_data.get("max_chunks")
             }
+            for key in ("pipeline", "active_domain"):
+                if request_data.get(key) is not None:
+                    item_data[key] = request_data[key]
             
             url = item['url']
             logger.info(f"[{i}/{len(request_data['items'])}] Processing {url}")
@@ -457,6 +469,7 @@ def create_sample_input_file() -> None:
             {
                 "url": "https://appalachiantrail.org/wp-content/uploads/2020/07/appalachian-trail-day-hikes-1.pdf",
                 "doc_type": "pdf",
+                "pipeline": "docling",
                 "skip_sections": []
             },
             {
@@ -467,7 +480,8 @@ def create_sample_input_file() -> None:
         ],
         "max_chunks": 100,
         "estimate": True,
-        "force_delete": False
+        "force_delete": False,
+        "pipeline": "pymupdf"
     }
     
     with open(sample_file, 'w') as f:

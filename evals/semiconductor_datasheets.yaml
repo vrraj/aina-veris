@@ -1,0 +1,84 @@
+# Labeled retrieval eval set for the datasheet corpus.
+#
+# Judgment is fuzzy by design: expected_document is a case-insensitive
+# substring match on the hit's source/url/document_id/title; expected_page
+# checks page_numbers membership; must_contain strings are substring-matched
+# (normalized, case-insensitive) against the chunk text. must_contain_mode
+# defaults to "any"; use "all" when every string must appear.
+
+description: >
+  MEMS ultra-low-power oscillator + LM358 op-amp datasheets.
+  Mixes spec-table lookups (exact values), prose questions, and
+  part-number lexical queries — exercises dense, sparse, and hybrid modes.
+
+queries:
+  - query: "What is the output swing range for the oscillator?"
+    expected_document: "085e18dd"
+    must_contain: ["250 mV", "800 mV"]
+
+  - query: "core operating current Idd typical value"
+    expected_document: "085e18dd"
+    expected_page: 1
+    must_contain: ["Core Operating Current", "0.9"]
+
+  - query: "output clock duty cycle min max"
+    expected_document: "085e18dd"
+    expected_page: 2
+    must_contain: ["48", "52"]
+
+  - query: "programmable output voltage high range VOH"
+    expected_document: "085e18dd"
+    expected_page: 2
+    must_contain: ["0.60", "1.225"]
+
+  - query: "absolute maximum supply voltage rating"
+    expected_document: "085e18dd"
+    expected_page: 3
+    must_contain: ["-0.5", "3.63"]
+
+  - query: "storage temperature range"
+    expected_document: "085e18dd"
+    expected_page: 3
+    must_contain: ["-65", "150"]
+
+  - query: "mechanical shock resistance test condition"
+    expected_document: "085e18dd"
+    expected_page: 3
+    must_contain: ["10,000"]
+
+  - query: "frequency tolerance specification"
+    expected_document: "085e18dd"
+    must_contain: ["20 ppm"]
+
+  - query: "lowest programmable output frequency"
+    expected_document: "085e18dd"
+    must_contain: ["1 Hz"]
+
+  - query: "can the oscillator be cleaned ultrasonically"
+    expected_document: "085e18dd"
+    expected_page: 11
+    must_contain: ["ultrasonic"]
+
+  - query: "NanoDrive acceptable VOH VOL levels"
+    expected_document: "085e18dd"
+    expected_page: 12
+    must_contain: ["NanoDrive", "VOH"]
+
+  - query: "part number ordering information"
+    expected_document: "085e18dd"
+    expected_page: 12
+
+  - query: "pin configuration SMD package Vdd GND"
+    expected_document: "085e18dd"
+    expected_page: 2
+    must_contain: ["Vdd", "GND"]
+
+  - query: "LVCMOS full swing output waveform into 15 pF load"
+    expected_document: "085e18dd"
+    expected_page: 5
+    must_contain: ["LVCMOS", "15 pF"]
+
+  - query: "what is the LM358 op-amp used for"
+    expected_document: lm358
+    must_contain: ["operational amplifier"]
+    must_contain_mode: any

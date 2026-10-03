@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Models</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="/static/styles.css" rel="stylesheet">
+  <link href="/static/index-page.css" rel="stylesheet">
+  <style>
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-off { background: #f3f4f6; color: #6b7280; }
+    .model-key { word-break: break-all; }
+    .action-btn { background: #fff; border: 1px solid #d8d5cf; border-radius: 6px; color: #171717; padding: 4px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .action-btn:hover { background: #f5f3ed; }
+    .action-btn:disabled { opacity: 0.5; cursor: default; }
+    .action-btn-danger { color: #9a2a23; }
+    .model-table { table-layout: fixed; }
+    .model-table .col-idle { width: 7rem; }
+    .model-table .col-act { width: 5.5rem; }
+    .page-btn { background: #fff; border: 1px solid #d8d5cf; border-radius: 0.55rem; color: #171717; font-weight: 600; }
+    .page-btn:hover { background: #f5f3ed; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <nav class="text-sm text-gray-600 mb-4 flex items-center">
+      <a href="/" style="display: inline-block; text-decoration: none; border: none; background: none; padding: 0; margin: 0;">
+        <img src="/images/aina-markets-dark-on-white.png" alt="Aina Veris" style="width: 40px; height: 40px; margin-right: 8px;">
+      </a>
+      <a href="/" class="hover:text-gray-900">Aina Veris</a>
+      <span class="mx-2">→</span>
+      <span class="text-gray-900">Manage Models</span>
+    </nav>
+    <hr class="border-gray-200 mb-4">
+
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-semibold">Manage Models</h1>
+      <div class="flex items-center gap-2">
+        <button id="refreshBtn" class="page-btn px-4 py-2" title="Refresh cache status">Refresh</button>
+        <button id="ejectAllBtn" class="page-btn px-4 py-2 action-btn-danger" title="Evict every cached model from memory">Eject all</button>
+      </div>
+    </div>
+
+    <p id="statusLine" class="text-sm text-gray-600 mb-4"></p>
+
+    <div id="cacheList" class="space-y-4 mb-8"></div>
+
+    <h2 class="text-xl font-semibold mb-3">Local model registry</h2>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div id="localPaths" class="text-sm text-gray-600 mb-3"></div>
+      <div id="localModels"></div>
+    </div>
+  </div>
+  <script src="/static/models.js" type="module"></script>
+</body>
+</html>

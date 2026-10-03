@@ -60,6 +60,10 @@ services:
       # treating a host-side QDRANT_HOST=localhost as container-local Qdrant.
       QDRANT_HOST: ${DOCKER_QDRANT_HOST:-qdrant}
       QDRANT_PORT: ${DOCKER_QDRANT_PORT:-6333}
+      # Persist Docling/Hugging Face model downloads inside the mounted
+      # LOCAL_MODELS_CACHE_PATH volume so container recreation doesn't
+      # re-download them.
+      HF_HOME: /root/models/huggingface
 
     volumes:
       # Persistent storage for logs written by your start.py script
