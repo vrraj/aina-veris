@@ -179,6 +179,23 @@ application-supplied documents; use batch ingestion to plan and process larger
 source sets. The domain configuration determines the collection shards,
 embedding path, and retrieval policy used once that knowledge base is queried.
 
+### Accelerated document intelligence
+
+Aina-Veris can use available GPU acceleration to process complex PDF corpora
+faster. Its Docling ingestion path performs layout-aware extraction, OCR,
+table reconstruction, figure handling, and provenance-preserving chunking
+before indexing the resulting content for domain-aware research.
+
+On Linux infrastructure with NVIDIA CUDA, GPU acceleration can be used for
+Docling processing and supported local embedding, sparse-retrieval, and
+reranking models. Native and hybrid deployments on Apple Silicon can use MPS
+and CoreML where supported. CPU-only deployment remains available.
+
+> **Scope:** acceleration applies to document-processing and local model
+> stages, depending on deployment configuration and installed runtime
+> providers. Qdrant remains the vector database; this does not imply that all
+> vector-database search operations run on a GPU.
+
 <p align="center">
   <img src="images/aina-veris-ingestion-pipeline.png" style="max-width: 100%; height: auto;" alt="Aina-Veris ingestion pipeline showing individual and batch source ingestion, metadata-preserving processing, domain-aware indexing, and Qdrant domain collections" />
 </p>

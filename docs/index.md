@@ -159,6 +159,21 @@ Human operators can use the included workspace to configure domains, prompts,
 models, and tools; inspect pipeline execution; test research behavior; and
 evaluate retrieval independently of answer generation.
 
+### Accelerated document intelligence
+
+Aina-Veris can use available GPU acceleration to process complex PDF corpora
+faster. The Docling ingestion path performs layout-aware extraction, OCR,
+table reconstruction, figure handling, and provenance-preserving chunking
+before content enters a domain knowledge base.
+
+Linux deployments with NVIDIA CUDA can accelerate Docling processing and
+supported local embedding, sparse-retrieval, and reranking models. Native and
+hybrid Apple Silicon deployments can use MPS and CoreML where supported;
+CPU-only deployment remains available. This acceleration applies to document
+processing and local model stages, not a claim that all Qdrant search operations
+run on a GPU. See [Deployment Architecture](DEPLOYMENT_ARCHITECTURE.md) for
+the supported deployment paths and configuration.
+
 ### Better coverage for multi-part questions
 
 When a question has several parts, Aina-Veris can split it into smaller
