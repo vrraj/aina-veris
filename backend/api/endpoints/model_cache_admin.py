@@ -20,12 +20,13 @@ router = APIRouter()
 @router.get(
     "/models/cache",
     tags=["4. Index Admin"],
-    summary="List cached models, idle times, and on-disk locations",
+    summary="List local cache status and hosted-provider workloads",
 )
 async def get_model_cache(request: Request):
     """Snapshot of all TTLModelCache instances: which models are in
     memory, how long they've been idle, and the local (on-disk) model
-    cache locations for the registry-configured local models."""
+    cache locations for the registry-configured local models, plus a
+    credential-safe summary of hosted-provider workloads."""
     enforce_origin_host(request)
     return model_cache_admin.cache_status()
 

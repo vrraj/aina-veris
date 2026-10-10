@@ -18,6 +18,18 @@ class StageSpec(TypedDict):
     kwargs: Dict[str, Any]
 
 
+def _provider_from_model_key(model_key: str, fallback: str = "openai") -> str:
+    """Infer a hosted provider from a registry key while retaining a safe fallback."""
+    key = str(model_key or "").strip().lower()
+    if key.startswith("models/gemini") or key.startswith("gemini"):
+        return "gemini"
+    if ":" in key:
+        provider = key.split(":", 1)[0]
+        aliases = {"google": "gemini", "nim": "nvidia", "nvda": "nvidia"}
+        return aliases.get(provider, provider)
+    return fallback
+
+
 def resolve_stage_specs(
     *,
     settings_obj: Any,
@@ -72,7 +84,9 @@ def resolve_stage_specs(
     )
 
     inference_provider = getattr(settings_obj, "inference_provider", "openai")
-    effective_inference_provider = inference_provider_override or inference_provider
+    effective_inference_provider = inference_provider_override or _provider_from_model_key(
+        effective_inference_model, inference_provider
+    )
     tools_synth_model = effective_inference_model
 
     active_domain = str(
@@ -196,7 +210,9 @@ def resolve_stage_specs(
             },
         },
         "rewrite": {
-            "provider": rewrite_provider_override or "openai",
+            "provider": rewrite_provider_override or _provider_from_model_key(
+                rewrite_model_key_override or rewrite_model_override or rewrite_model
+            ),
             "model": rewrite_model_key_override or rewrite_model_override or rewrite_model,
             "kwargs": {
                 "temperature": rewrite_temp,
@@ -204,7 +220,9 @@ def resolve_stage_specs(
             },
         },
         "summary": {
-            "provider": summary_provider_override or "openai",
+            "provider": summary_provider_override or _provider_from_model_key(
+                summary_model_key_override or summary_model_override or summarizer_model
+            ),
             "model": summary_model_key_override or summary_model_override or summarizer_model,
             "kwargs": {
                 "temperature": summarizer_temp,
@@ -214,7 +232,10 @@ def resolve_stage_specs(
         },
         "rerank": {
             "runtime": rerank_runtime,
-            "provider": rerank_provider_override or rerank_provider_cfg or "openai",
+            "provider": rerank_provider_override or _provider_from_model_key(
+                rerank_model_key_override or rerank_model_override or rerank_model_cfg or rerank_model,
+                rerank_provider_cfg or "openai",
+            ),
             "model": rerank_model_key_override or rerank_model_override or rerank_model_cfg or rerank_model,
             "kwargs": {
                 "enabled": rerank_enabled_cfg,

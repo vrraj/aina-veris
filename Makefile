@@ -75,9 +75,12 @@ rebuild:
 # - Qdrant database runs in a Docker container
 # - Web application runs in a local Python virtual environment (outside Docker)
 # - Uses run.py with auto-reload enabled for development
+# - On Apple Silicon this is the GPU path: the native app can use MPS/CoreML;
+#   Docker Desktop cannot pass Metal through to the webapp container.
+# - Set QDRANT_HOST=localhost and QDRANT_PORT=6335 in .env for the native app.
 # Use this if you prefer running the web app natively or have specific development needs
 # Prerequisites: Python 3.8+, virtualenv, and Docker must be installed
-# Usage: make start-hybrid
+# Usage: make start-hybrid  # Apple Silicon MPS/CoreML
 start-hybrid:
 	echo "Starting Qdrant and Chat application in hybrid mode..."
 	@$(MAKE) start-docker
