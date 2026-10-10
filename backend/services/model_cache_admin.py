@@ -63,13 +63,75 @@ def _caches() -> Dict[str, Tuple[TTLModelCache, str]]:
     return caches
 
 
-def _loaded_keys(caches: Dict[str, Tuple[TTLModelCache, str]]) -> Dict[str, str]:
-    """cache key -> cache name, across all caches."""
-    loaded: Dict[str, str] = {}
+def _loaded_keys(caches: Dict[str, Tuple[TTLModelCache, str]]) -> Dict[str, Dict[str, Any]]:
+    """cache key -> {cache name, bound providers}, across all caches."""
+    loaded: Dict[str, Dict[str, Any]] = {}
     for name, (cache, _desc) in caches.items():
         for key in cache.stats()["models"].keys():
-            loaded[str(key)] = name
+            model = cache._cache.get(key, (None, 0))[0]
+            loaded[str(key)] = {
+                "cache": name,
+                "providers": _providers_of(model) or _accelerators_of(key, model),
+            }
     return loaded
+
+
+def _torch_device_auto() -> str:
+    try:
+        import torch
+
+        if torch.backends.mps.is_available():
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
+def _predicted_accelerator(cfg: Dict[str, Any], onnx_chain: list) -> Optional[list]:
+    """Accelerator a cold model will bind on next load: unified/PyTorch
+    models auto-detect a torch device; ONNX models use the configured
+    provider chain."""
+    if cfg.get("device"):
+        return [str(cfg["device"])]
+    if cfg.get("emits") or str(cfg.get("runtime") or "") == "bgem3":
+        return [_torch_device_auto()]
+    if cfg.get("extra") and (cfg["extra"].get("providers") or []):
+        return list(cfg["extra"]["providers"])
+    return onnx_chain
+
+
+_INFERENCE_ONLY_KINDS = ("late_interaction", "reranker")
+
+
+def _domain_usage(local: Dict[str, Any]) -> Dict[str, set]:
+    """model_key -> domains that use it, counting both embed sides.
+
+    A domain on a unified emits=sparse model (e.g. BGE-M3) uses that model
+    for sparse too; every other hybrid domain uses the registry's global
+    sparse entry (SPLADE) — including hosted-hybrid domains.
+    """
+    from backend.core.config import settings
+    from backend.retrieval.config_loader import get_model_config_by_key
+
+    usage: Dict[str, set] = {}
+    sparse_key = str((local.get("sparse") or {}).get("model_key") or "")
+    for domain, dcfg in (settings.DOMAIN_EMBEDDING_CONFIG or {}).items():
+        if not isinstance(dcfg, dict):
+            continue
+        key = str(dcfg.get("embedding_model_key") or "")
+        if key:
+            usage.setdefault(key, set()).add(domain)
+        emits = []
+        if key.startswith("local:"):
+            try:
+                emits = get_model_config_by_key(key).get("emits") or []
+            except Exception:
+                pass
+        if dcfg.get("vector_type") == "hybrid" and "sparse" not in emits and sparse_key:
+            usage.setdefault(sparse_key, set()).add(domain)
+    return usage
 
 
 def _local_models(loaded: Dict[str, str]) -> list:
@@ -79,11 +141,17 @@ def _local_models(loaded: Dict[str, str]) -> list:
             load_retrieval_config,
             resolve_local_model_cache_dir,
         )
-        local = load_retrieval_config().get("local_models") or {}
+        cfg_all = load_retrieval_config()
+        local = cfg_all.get("local_models") or {}
+        onnx_chain = (
+            (((cfg_all.get("retrieval") or {}).get("defaults") or {}).get("embedding") or {})
+            .get("extra") or {}
+        ).get("providers") or None
     except Exception as exc:
         logger.debug("local models registry unavailable: %s", exc)
         return []
 
+    usage = _domain_usage(local)
     out = []
     for kind, cfg in local.items():
         if not isinstance(cfg, dict):
@@ -93,19 +161,28 @@ def _local_models(loaded: Dict[str, str]) -> list:
             cache_dir = resolve_local_model_cache_dir(cfg)
         except Exception:
             cache_dir = str(cfg.get("cache_dir") or "")
-        loaded_key, in_memory_in = next(
-            ((key, cache_name) for key, cache_name in loaded.items() if name and key.startswith(name)),
+        loaded_key, loaded_info = next(
+            ((key, info) for key, info in loaded.items() if name and key.startswith(name)),
             (None, None),
         )
+        accelerator = (
+            loaded_info["providers"]
+            if loaded_info and loaded_info.get("providers")
+            else _predicted_accelerator(cfg, onnx_chain)
+        )
+        roles = ["inference"] if kind in _INFERENCE_ONLY_KINDS else ["indexing", "inference"]
         out.append(
             {
                 "kind": kind,
                 "name": name,
                 "enabled": bool(cfg.get("enabled", True)),
+                "roles": roles,
+                "domains": sorted(usage.get(str(cfg.get("model_key") or ""), ())),
+                "accelerator": accelerator,
                 "cache_dir": cache_dir,
                 "on_disk": bool(cache_dir) and os.path.isdir(cache_dir),
-                "in_memory": in_memory_in is not None,
-                "loaded_in": in_memory_in,
+                "in_memory": loaded_info is not None,
+                "loaded_in": loaded_info["cache"] if loaded_info else None,
                 "loaded_key": loaded_key,
             }
         )

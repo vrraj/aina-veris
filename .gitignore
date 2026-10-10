@@ -93,5 +93,8 @@ models/
 1
 ~/
 
+# Internal specs docs (not for publishing)
+internal-specs-docs/
+
 # Docling extraction artifacts (runtime data)
 docling_artifacts/
