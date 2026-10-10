@@ -92,6 +92,40 @@ class TestAdminService:
         assert entry["models"][0]["key"] == "m1"
         assert entry["models"][0]["idle_secs"] >= 0
         assert "local_models" in status
+        assert [provider["provider"] for provider in status["hosted_providers"]] == [
+            "nvidia", "openai", "gemini"
+        ]
+        docling_models = [
+            model for model in status["local_models"] if model["kind"] == "docling"
+        ]
+        assert {model["name"] for model in docling_models} >= {
+            "docling-layout-heron",
+            "TableFormer (accurate)",
+        }
+
+    def test_hosted_provider_workloads_are_grouped_without_model_names(self):
+        class Settings:
+            DOMAIN_EMBEDDING_CONFIG = {
+                "docs": {"embedding_model_key": "openai:embed_small"},
+                "research": {"embedding_model_key": "gemini:native-embed"},
+            }
+            openai_api_key = "test-key"
+            gemini_api_key = None
+            rewrite_model_key = "nvidia:nemotron"
+            rerank_model_key = "openai:gpt-4o-mini"
+            summarizer_model_key = "openai:gpt-4o-mini"
+            inference_model_key = "gemini:flash"
+            tools_synth_model_key = None
+
+        cards = {card["provider"]: card for card in admin._hosted_providers(Settings())}
+
+        assert cards["nvidia"]["ask_stage_workloads"] == [
+            "Query preparation", "Ranking", "Summaries", "Answer generation"
+        ]
+        assert cards["nvidia"]["workloads"] == ["Query preparation"]
+        assert cards["openai"]["workloads"] == ["Ranking", "Summaries", "Dense embeddings"]
+        assert cards["gemini"]["workloads"] == ["Answer generation", "Tool-response synthesis", "Dense embeddings"]
+        assert cards["openai"]["credentials_configured"] is True
 
     def test_eject_single_and_all(self, monkeypatch):
         cache = self._patched(monkeypatch)

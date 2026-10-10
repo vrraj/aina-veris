@@ -1,7 +1,7 @@
 // Model cache management page: lists in-memory model caches and the
-// local (on-disk) registry locations; supports eject / reload / eject-all.
+// local (on-disk) registry locations, plus hosted-provider workloads.
 
-const cacheList = document.getElementById('cacheList');
+const hostedModelsEl = document.getElementById('hostedModels');
 const localModelsEl = document.getElementById('localModels');
 const localPathsEl = document.getElementById('localPaths');
 const statusLine = document.getElementById('statusLine');
@@ -17,12 +17,31 @@ function fmtIdle(secs) {
 }
 
 function badge(ok, yesLabel, noLabel) {
+  if (ok == null) return '<span class="text-gray-400">unknown</span>';
   return `<span class="badge ${ok ? 'badge-ok' : 'badge-off'}">${ok ? yesLabel : noLabel}</span>`;
 }
 
 const ROLE_CHIP_STYLE = {
   indexing: 'background:#dbeafe;color:#1e40af;',
   inference: 'background:#ede9fe;color:#5b21b6;',
+};
+
+const MODEL_DESCRIPTIONS = {
+  dense: 'Dense FastEmbed embedding model',
+  sparse: 'Sparse FastEmbed (SPLADE)',
+  m3: 'BGE-M3 unified dense and sparse embeddings',
+  late_interaction: 'ColBERT late-interaction reranker',
+  reranker: 'Cross-encoder reranker',
+  docling: 'Docling PDF extraction component',
+};
+
+const CACHE_BY_MODEL_KIND = {
+  dense: 'embeddings-dense',
+  sparse: 'embeddings-sparse',
+  m3: 'embeddings-m3',
+  late_interaction: 'colbert-reranker',
+  reranker: 'cross-encoder-reranker',
+  docling: 'docling-converters',
 };
 
 function roleChip(role) {
@@ -42,6 +61,30 @@ function accelChips(accelerators) {
   }).join(' ');
 }
 
+function renderHostedProviders(providers) {
+  if (!providers || !providers.length) {
+    hostedModelsEl.innerHTML = '<div class="text-sm text-gray-400">Hosted provider status is unavailable.</div>';
+    return;
+  }
+  hostedModelsEl.innerHTML = providers.map((provider) => {
+    const workloadChips = (provider.ask_stage_workloads || []).length
+      ? provider.ask_stage_workloads.map((workload) => `<span class="badge" style="background:#dbeafe;color:#1e40af;">${workload}</span>`).join(' ')
+      : '<span class="text-sm text-gray-400">No Ask stages available</span>';
+    const credential = provider.credentials_configured
+      ? '<span class="badge badge-ok">credential configured</span>'
+      : '<span class="badge badge-off">no credential configured</span>';
+    return `
+      <article class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <h3 class="font-semibold text-gray-900">${provider.label}</h3>
+          ${credential}
+        </div>
+        <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">Available in Ask for</div>
+        <div class="flex flex-wrap gap-1">${workloadChips}</div>
+      </article>`;
+  }).join('');
+}
+
 async function post(url, body) {
   const resp = await fetch(url, {
     method: 'POST',
@@ -57,41 +100,12 @@ async function post(url, body) {
 
 function render(data) {
   const total = data.caches.reduce((n, c) => n + c.models.length, 0);
+  const cachesByName = new Map((data.caches || []).map((cache) => [cache.name, cache]));
   statusLine.textContent =
     `${total} model(s) in memory across ${data.caches.length} cache(s). ` +
     `Local weights: ${data.local_models_root}`;
 
-  cacheList.innerHTML = '';
-  for (const c of data.caches) {
-    const card = document.createElement('div');
-    card.className = 'bg-white rounded-lg shadow p-4';
-    const rows = c.models.map((m) => `
-      <tr class="border-t">
-        <td class="py-2 pr-4 mono model-key text-sm font-semibold text-gray-900">${m.key}</td>
-        <td class="py-2 pr-4 text-sm whitespace-nowrap text-right">idle ${fmtIdle(m.idle_secs)}</td>
-        <td class="py-2 pr-2 text-right">
-          <button class="action-btn" data-act="reload" data-cache="${c.name}" data-key="${m.key}">Reload</button>
-        </td>
-        <td class="py-2 text-right">
-          <button class="action-btn action-btn-danger" data-act="eject" data-cache="${c.name}" data-key="${m.key}">Eject</button>
-        </td>
-      </tr>`).join('');
-    card.innerHTML = `
-      <div class="flex items-center justify-between mb-1">
-        <div>
-          <span class="font-semibold text-gray-900">${c.name}</span>
-          <span class="text-sm text-gray-500 ml-2">${c.description || ''}</span>
-        </div>
-        <div class="text-sm text-gray-500">TTL ${fmtIdle(c.idle_timeout_s)} · ${c.models.length} loaded</div>
-      </div>
-      ${c.models.length
-        ? `<table class="w-full model-table"><colgroup><col><col class="col-idle"><col class="col-act"><col class="col-act"></colgroup><tbody>${rows}</tbody></table>`
-        : '<div class="text-sm text-gray-400 py-2">empty — loads lazily on next use</div>'}
-      ${c.models.length
-        ? `<button class="action-btn mt-2" data-act="eject-cache" data-cache="${c.name}">Eject all in ${c.name}</button>`
-        : ''}`;
-    cacheList.appendChild(card);
-  }
+  renderHostedProviders(data.hosted_providers);
 
   localPathsEl.innerHTML = `
     <div>models root: <span class="mono">${data.local_models_root || '—'}</span></div>
@@ -113,11 +127,23 @@ function render(data) {
         </tr>
       </thead>
       <tbody>
-        ${data.local_models.map((m) => `
+        ${data.local_models.map((m) => {
+          const cache = cachesByName.get(CACHE_BY_MODEL_KIND[m.kind]);
+          const cacheStatus = cache
+            ? `TTL ${fmtIdle(cache.idle_timeout_s)} · ${m.in_memory ? 'loaded' : 'loads lazily on next use'}`
+            : (m.in_memory ? 'loaded' : 'loads lazily on next use');
+          const doclingMpsNote = m.kind === 'docling'
+            && (m.accelerator || []).some((value) => String(value).toLowerCase() === 'mps')
+            ? ' · MPS GPU on Apple Silicon only — unavailable in Docker.'
+            : '';
+          return `
           <tr class="border-t text-sm"
               title="${(m.domains || []).length ? 'used by: ' + m.domains.join(', ') : 'not referenced by any domain'}">
             <td class="py-2 pr-4">${m.kind}</td>
-            <td class="py-2 pr-4 mono model-key font-semibold text-gray-900">${m.name || '—'}</td>
+            <td class="py-2 pr-4 model-key">
+              <div class="mono font-semibold text-gray-900">${m.name || '—'}</div>
+              <div class="text-xs text-gray-500 mt-1">${MODEL_DESCRIPTIONS[m.kind] || 'Local model'} · ${cacheStatus}${doclingMpsNote}</div>
+            </td>
             <td class="py-2 pr-4">${(m.roles || []).map(roleChip).join(' ')}
               ${(m.domains || []).length
                 ? `<span class="text-xs text-gray-400">×${m.domains.length}</span>`
@@ -128,11 +154,12 @@ function render(data) {
             <td class="py-2 pr-4">${badge(m.in_memory, 'memory', 'cold')}</td>
             <td class="py-2 mono model-key text-xs pr-4">${m.cache_dir || '—'}</td>
             <td class="py-2">
-              ${m.in_memory
-                ? `<button class="action-btn action-btn-danger" data-act="eject" data-cache="${m.loaded_in}" data-key="${m.loaded_key}">Eject</button>`
+              ${m.in_memory && m.ejectable !== false
+                ? `<div class="flex gap-1"><button class="action-btn" data-act="reload" data-cache="${m.loaded_in}" data-key="${m.loaded_key}">Reload</button><button class="action-btn action-btn-danger" data-act="eject" data-cache="${m.loaded_in}" data-key="${m.loaded_key}">Eject</button></div>`
                 : '<span class="text-xs text-gray-300">—</span>'}
             </td>
-          </tr>`).join('')}
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>`;
 }
@@ -148,7 +175,7 @@ async function load() {
   }
 }
 
-cacheList.addEventListener('click', async (e) => {
+localModelsEl.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const { act, cache, key } = btn.dataset;
@@ -156,7 +183,6 @@ cacheList.addEventListener('click', async (e) => {
   try {
     if (act === 'eject') await post('/models/cache/eject', { cache, key });
     else if (act === 'reload') await post('/models/cache/reload', { cache, key });
-    else if (act === 'eject-cache') await post('/models/cache/eject', { cache });
     await load();
   } catch (err) {
     alert(err.message || String(err));

@@ -17,6 +17,80 @@ from backend.retrieval.model_cache import TTLModelCache
 logger = logging.getLogger(__name__)
 
 
+_HOSTED_PROVIDER_CARDS = (
+    ("nvidia", "NVIDIA NIM", "NVIDIA_API_KEY"),
+    ("openai", "OpenAI", "OPENAI_API_KEY"),
+    ("gemini", "Google Gemini", "GEMINI_API_KEY"),
+)
+
+_PIPELINE_WORKLOADS = (
+    ("rewrite_model_key", "Query preparation"),
+    ("rerank_model_key", "Ranking"),
+    ("summarizer_model_key", "Summaries"),
+    ("inference_model_key", "Answer generation"),
+    ("tools_synth_model_key", "Tool-response synthesis"),
+)
+
+_ASK_STAGE_WORKLOADS = (
+    "Query preparation",
+    "Ranking",
+    "Summaries",
+    "Answer generation",
+)
+
+
+def _hosted_provider_name(model_key: Any) -> Optional[str]:
+    """Return the normalized provider prefix for a hosted model key."""
+    key = str(model_key or "").strip().lower()
+    if ":" not in key:
+        return None
+    provider = key.split(":", 1)[0]
+    return {"google": "gemini", "nim": "nvidia", "nvda": "nvidia"}.get(
+        provider, provider
+    )
+
+
+def _hosted_providers(settings_obj: Any = None) -> list:
+    """Summarize configured hosted-provider workloads without exposing model IDs or keys."""
+    if settings_obj is None:
+        from backend.core.config import settings as settings_obj
+
+    workloads = {provider: set() for provider, _, _ in _HOSTED_PROVIDER_CARDS}
+    for domain_config in (getattr(settings_obj, "DOMAIN_EMBEDDING_CONFIG", {}) or {}).values():
+        if not isinstance(domain_config, dict):
+            continue
+        provider = _hosted_provider_name(domain_config.get("embedding_model_key"))
+        if provider in workloads:
+            workloads[provider].add("Dense embeddings")
+
+    for attribute, workload in _PIPELINE_WORKLOADS:
+        model_key = getattr(settings_obj, attribute, None)
+        if attribute == "tools_synth_model_key" and not model_key:
+            model_key = getattr(settings_obj, "inference_model_key", None)
+        provider = _hosted_provider_name(model_key)
+        if provider in workloads:
+            workloads[provider].add(workload)
+
+    cards = []
+    for provider, label, env_name in _HOSTED_PROVIDER_CARDS:
+        settings_key = getattr(settings_obj, env_name.lower(), None)
+        cards.append(
+            {
+                "provider": provider,
+                "label": label,
+                "credentials_configured": bool(settings_key or os.getenv(env_name)),
+                "ask_stage_workloads": list(_ASK_STAGE_WORKLOADS),
+                "workloads": [
+                    workload
+                    for _, workload in _PIPELINE_WORKLOADS
+                    if workload in workloads[provider]
+                ]
+                + (["Dense embeddings"] if "Dense embeddings" in workloads[provider] else []),
+            }
+        )
+    return cards
+
+
 def _caches() -> Dict[str, Tuple[TTLModelCache, str]]:
     """name -> (cache, description). Missing modules are skipped."""
     caches: Dict[str, Tuple[TTLModelCache, str]] = {}
@@ -134,7 +208,7 @@ def _domain_usage(local: Dict[str, Any]) -> Dict[str, set]:
     return usage
 
 
-def _local_models(loaded: Dict[str, str]) -> list:
+def _local_models(loaded: Dict[str, Dict[str, Any]]) -> list:
     """Registry local models with their on-disk cache_dir and memory state."""
     try:
         from backend.retrieval.config_loader import (
@@ -186,7 +260,59 @@ def _local_models(loaded: Dict[str, str]) -> list:
                 "loaded_key": loaded_key,
             }
         )
+    out.extend(_docling_models(loaded))
     return out
+
+
+def _docling_models(loaded: Dict[str, Dict[str, Any]]) -> list:
+    """Expose Docling's configured component models alongside retrieval models.
+
+    Docling owns the actual model download locations, so individual component
+    files cannot be verified as precisely as registry-managed FastEmbed
+    models.  They do share one DocumentConverter cache entry, however.
+    """
+    try:
+        from backend.core.config import settings
+        from backend.extractor.docling_pdf_extractor import _converter_model_names
+
+        enabled = bool(getattr(settings, "pdf_docling_enabled", True))
+        do_ocr = bool(getattr(settings, "pdf_docling_do_ocr", False))
+        table_mode = str(getattr(settings, "pdf_docling_table_mode", "accurate"))
+        picture_description = bool(
+            getattr(settings, "pdf_docling_picture_description", False)
+        )
+        picture_model = str(
+            getattr(settings, "pdf_docling_picture_description_model", "smolvlm")
+        )
+        device = str(getattr(settings, "pdf_docling_accelerator_device", "auto"))
+        names = _converter_model_names(
+            do_ocr, table_mode, picture_description, picture_model
+        )
+    except Exception as exc:
+        logger.debug("Docling model configuration unavailable: %s", exc)
+        return []
+
+    converter_loaded = any(
+        info.get("cache") == "docling-converters" for info in loaded.values()
+    )
+    hf_home = os.getenv("HF_HOME")
+    return [
+        {
+            "kind": "docling",
+            "name": name,
+            "enabled": enabled,
+            "roles": ["indexing"],
+            "domains": [],
+            "accelerator": [device],
+            "cache_dir": hf_home or "—",
+            "on_disk": None,
+            "in_memory": converter_loaded,
+            "loaded_in": "docling-converters" if converter_loaded else None,
+            "loaded_key": None,
+            "ejectable": False,
+        }
+        for name in names
+    ]
 
 
 def _providers_of(model: Any) -> Optional[list]:
@@ -248,6 +374,7 @@ def cache_status() -> Dict[str, Any]:
         "hf_home": os.getenv("HF_HOME"),
         "caches": cache_entries,
         "local_models": _local_models(loaded),
+        "hosted_providers": _hosted_providers(),
     }
 
 
