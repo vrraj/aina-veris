@@ -51,17 +51,129 @@ def _default_domain_embedding_config() -> Dict[str, Dict[str, Any]]:
     }
 
 
+# Named domain profiles: shorthand that expands to the full
+# model_type/vector_type/search_mode (+ default embedding_model_key) fields.
+# Explicit fields remain supported; when combined with a profile, structural
+# fields must agree with the profile or validation fails. embedding_model_key
+# is the one field a profile user may legitimately override (e.g. a different
+# hosted embedding model under the same profile).
+_DOMAIN_PROFILES: Dict[str, Dict[str, Any]] = {
+    # Legacy unnamed-vector format for collections indexed before named
+    # vectors existed. Kept for backward compatibility only.
+    "legacy-dense": {
+        "model_type": "hosted",
+        "embedding_model_key": "openai:embed_small",
+        "vector_type": None,
+        "search_mode": "dense",
+    },
+    "hosted-dense": {
+        "model_type": "hosted",
+        "embedding_model_key": "openai:embed_small",
+        "vector_type": "dense",
+        "search_mode": "dense",
+    },
+    "local-dense": {
+        "model_type": "local",
+        "embedding_model_key": "local:dense_default",
+        "vector_type": "dense",
+        "search_mode": "dense",
+    },
+    # Hosted dense model + local SPLADE sparse vectors.
+    "hosted-hybrid": {
+        "model_type": "hosted",
+        "embedding_model_key": "openai:embed_small",
+        "vector_type": "hybrid",
+        "search_mode": "hybrid",
+    },
+    # Local BGE dense + local SPLADE sparse, RRF-fused. Best default for
+    # technical corpora (part numbers, units, exact terms).
+    "local-hybrid": {
+        "model_type": "local",
+        "embedding_model_key": "local:dense_default",
+        "vector_type": "hybrid",
+        "search_mode": "hybrid",
+    },
+    # BGE-M3 single-pass: one encode emits dense (1024-d) + sparse in M3's
+    # own vocab. Structurally identical to local-hybrid; the model key is
+    # what routes indexing/query through the unified bgem3 runtime.
+    "local-bgem3": {
+        "model_type": "local",
+        "embedding_model_key": "local:m3_default",
+        "vector_type": "hybrid",
+        "search_mode": "hybrid",
+    },
+}
+
+
+class DomainCollectionSpec(BaseModel):
+    """An additional shard collection searched alongside the primary."""
+
+    name: str
+    pipeline: Optional[str] = None
+
+
 class DomainEmbeddingEntry(BaseModel):
     collection_name: str
-    embedding_model_key: str
-    model_type: Literal["hosted", "local"]
+    # Additional shard collections for the domain. The primary
+    # (collection_name) is always searched; these are searched alongside it.
+    collections: Optional[List[DomainCollectionSpec]] = None
+    profile: Optional[Literal[
+        "legacy-dense", "hosted-dense", "local-dense", "hosted-hybrid", "local-hybrid", "local-bgem3"
+    ]] = None
+    embedding_model_key: Optional[str] = None
+    model_type: Optional[Literal["hosted", "local"]] = None
     vector_type: Optional[Literal["dense", "hybrid"]] = None
-    search_mode: Literal["dense", "hybrid", "sparse"]
+    search_mode: Optional[Literal["dense", "hybrid"]] = None
 
     @model_validator(mode="after")
-    def validate_vector_search_mode(self):
-        if self.vector_type == "hybrid" and self.search_mode != "hybrid":
-            raise ValueError("search_mode must be 'hybrid' when vector_type is 'hybrid'")
+    def resolve_profile_and_validate_modes(self):
+        if self.profile:
+            spec = _DOMAIN_PROFILES[self.profile]
+            for field_name in ("model_type", "vector_type", "search_mode"):
+                value = getattr(self, field_name)
+                expected = spec[field_name]
+                if value is None:
+                    setattr(self, field_name, expected)
+                elif value != expected:
+                    raise ValueError(
+                        f"{field_name}={value!r} conflicts with profile "
+                        f"'{self.profile}' (expects {expected!r})"
+                    )
+            if self.embedding_model_key is None:
+                self.embedding_model_key = spec["embedding_model_key"]
+
+        missing = [
+            f for f in ("embedding_model_key", "model_type", "search_mode")
+            if getattr(self, f) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"missing required field(s) {missing}; set them explicitly "
+                f"or use a 'profile' shorthand"
+            )
+
+        # Sparse indexes only exist on hybrid collections, so the search mode
+        # must match the vector layout exactly.
+        if self.vector_type == "hybrid":
+            if self.search_mode != "hybrid":
+                raise ValueError("search_mode must be 'hybrid' when vector_type is 'hybrid'")
+        elif self.search_mode != "dense":
+            raise ValueError(
+                "search_mode must be 'dense' when vector_type is 'dense' or unset "
+                "(sparse/hybrid search requires vector_type: hybrid)"
+            )
+
+        if self.collections:
+            names = [str(s.name or "").strip() for s in self.collections]
+            if any(not n for n in names):
+                raise ValueError("collections entries must have a non-empty name")
+            if len(set(names)) != len(names):
+                raise ValueError("collections entries must have unique names")
+            if self.collection_name in names:
+                raise ValueError(
+                    "collections must not repeat collection_name (the primary "
+                    "shard is always included)"
+                )
         return self
 
 
@@ -399,6 +511,7 @@ class Settings(BaseSettings):
     enable_tools: bool = True  # Enable agent-style tool calls (UI can override per-turn)
     max_tool_passes: int = 2  # Maximum number of tool loops to be called from LLM generated output for a single turn. This it to prevent runaway tool calls
     mcp_tools_refresh: int = 300  # TTL (seconds) for refreshing merged tool definitions (static + MCP)
+    mcp_tool_timeout_seconds: float = 30.0  # hard cap on external MCP tool calls; timed-out calls are cancelled
 
     # Tools that should receive document snippets (reranked context) as `existing_context`.
     # Most tools (e.g., get_weather, closest_airports) should NOT be listed here.
@@ -456,6 +569,14 @@ class Settings(BaseSettings):
     # Models unused for longer than this are released from memory and
     # re-loaded on next access. Set to 0 to disable eviction.
     model_cache_idle_ttl_seconds: int = 300
+
+    # Idle eviction TTL for ingestion-only models (Docling converter:
+    # layout, TableFormer, OCR, picture-description VLM) in seconds.
+    # These models are never used at query time, so they can be evicted
+    # more aggressively than embedding models, but rebuilding the
+    # converter is expensive (model loads, ~10-60 s). Longer than the
+    # embedding TTL for that reason. Set to 0 to keep them resident.
+    ingestion_model_cache_idle_ttl_seconds: int = 900
 
     # --- UI display toggles ---
     # Whether to append the Sources: block + structured sources for the main chat UI.
@@ -519,6 +640,50 @@ class Settings(BaseSettings):
 
     # Back-compat alias used by older code paths (prefer pdf_header_footer_filter going forward)
     header_footer_filter: bool = True
+
+    # --- Docling PDF pipeline (POST /index-pdf-docling, additive path) ---
+    # Writes go to a dedicated "<domain_collection>_docling_v1" collection so
+    # the legacy /pdf path and its collections stay untouched.
+    pdf_docling_enabled: bool = True  # Feature gate for the /index-pdf-docling route
+    pdf_docling_warmup_on_startup: bool = True  # Pre-download Docling models in the background after startup
+    pdf_docling_artifact_dir: str = "docling_artifacts"  # Extraction artifact store (JSON, outside Qdrant)
+    pdf_docling_chunk_size: int = 500  # Embedding token budget per chunk (target 300-600)
+    pdf_docling_chunk_overlap: int = 50  # Minimal overlap for prose sentence splits
+    pdf_docling_table_rows_per_chunk: int = 12  # Data rows per table row-group chunk
+    pdf_docling_min_rows_row_repr: int = 8  # Tables with more rows than this also get row-level key/value chunks
+    pdf_docling_collection_suffix: str = "_docling_v1"  # Suffix for the dedicated Qdrant collection
+    pdf_docling_do_ocr: bool = False  # Enable Docling OCR (rapidocr) for scanned pages
+    pdf_docling_table_mode: str = "accurate"  # Docling TableFormerMode: "fast" or "accurate"
+    # Docling inference device: auto (best available), cpu, mps, cuda, cuda:N, xpu.
+    # "cpu" avoids GPU/torch accelerator init entirely; pair with the CPU-only
+    # PyTorch install (requirements-cpu.txt) for the smallest footprint.
+    pdf_docling_accelerator_device: str = "auto"
+    pdf_docling_num_threads: int = 4  # CPU threads for Docling model inference
+    # Send detected picture regions through a captioning VLM so figures get
+    # searchable text (indexed as caption chunks). Adds a model download and
+    # per-figure inference cost at index time.
+    pdf_docling_picture_description: bool = False
+    # "smolvlm" (256M, CPU-friendly) or "granite" (granite-vision-3.3-2b).
+    pdf_docling_picture_description_model: str = "smolvlm"
+    # Base render scale for generated page/picture bitmaps (1.0 = 72 DPI).
+    # Effective VLM crop resolution is images_scale x the VLM preset's own
+    # scale (2.0), so 2.0 here yields ~288 DPI crops — needed for micro-text
+    # on figures (package outlines, 0.55mm callouts). Higher values cost
+    # memory and VLM prefill time on every generated image.
+    pdf_docling_images_scale: float = 1.0
+    # After a Docling conversion completes, eject the converter (layout +
+    # TableFormer + OCR/VLM stack, ~1.5-2 GB) from the idle-TTL cache when
+    # system free memory drops below this many MB. Embedding models load
+    # right after conversion, so a still-resident converter can push a
+    # constrained host over the edge mid-request — the floor must cover the
+    # embedding models' footprint plus batch workspace, not just idle slack.
+    # 0 disables (idle TTL only); a very large value always evicts.
+    pdf_docling_free_converter_mb: int = 4096
+
+    # Runtime override for the per-model embedding batch size that otherwise
+    # comes from the model registry. Shrinking batches reduces peak memory
+    # during indexing on constrained hosts. 0 = use the registry default.
+    embed_batch_size_override: int = 0
 
     mediawiki_chunk_size: int = 500
     mediawiki_chunk_overlap: int = 100
@@ -596,6 +761,15 @@ class Settings(BaseSettings):
         """Vector type from active domain configuration (None, 'dense', or 'hybrid')"""
         return self.DOMAIN_EMBEDDING_CONFIG[self.active_domain].get("vector_type")
 
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        # Allow extra env vars (e.g., feature flags) without validation errors.
+        "extra": "ignore",
+    }
+
+
 def get_assistant_role(settings_obj: Any, params: Dict[str, Any] | None = None) -> str:
     """
     Get assistant role for current inference model from model registry.
@@ -630,14 +804,6 @@ def get_assistant_role(settings_obj: Any, params: Dict[str, Any] | None = None) 
 # -------------------------------------------------------------------------
 # Shared directory for PDF files that can be referenced by filename only
 # shared_pdf_directory: str = Field(env="SHARED_PDF_DIRECTORY", default="/tmp/shared_pdfs")
-
-model_config = {
-    "env_file": ".env",
-    "env_file_encoding": "utf-8",
-    "case_sensitive": False,
-    # Allow extra env vars (e.g., feature flags) without validation errors.
-    "extra": "ignore",
-}
 
 
 # Initialize settings after all classes are defined

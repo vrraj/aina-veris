@@ -6,7 +6,7 @@ import asyncio
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from typing import Any, Awaitable, Dict, List, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -121,15 +121,38 @@ def _mcp_arguments(
 
 
 def _run_coro_sync(coro: Awaitable[Any], *, timeout: float | None = None) -> Any:
-    """Execute a coroutine from sync code, even if a loop is already running."""
+    """Execute a coroutine from sync code, even if a loop is already running.
+
+    `timeout` is enforced with asyncio.wait_for inside the worker's event
+    loop so cancellation actually reaches in-flight awaits (e.g. the HTTP
+    request), and the executor is shut down without waiting so a stuck or
+    timed-out call returns instead of blocking on the worker thread.
+    """
+    bounded = asyncio.wait_for(coro, timeout) if timeout else coro
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coro)
+        try:
+            return asyncio.run(bounded)
+        except (asyncio.TimeoutError, FuturesTimeoutError) as exc:
+            # <3.11: wait_for raises FuturesTimeoutError, not builtin
+            # TimeoutError. Normalize so sync callers see the builtin.
+            raise TimeoutError(
+                f"operation timed out after {timeout}s"
+            ) from exc
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(lambda: asyncio.run(coro))
-        return future.result(timeout=timeout)
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(lambda: asyncio.run(bounded))
+        grace = (timeout + 5.0) if timeout else None
+        try:
+            return future.result(timeout=grace)
+        except (asyncio.TimeoutError, FuturesTimeoutError) as exc:
+            raise TimeoutError(
+                f"operation timed out after {timeout}s"
+            ) from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _merge_runtime(tool_name: str, data: Dict[str, Any]) -> None:
@@ -266,6 +289,7 @@ async def call_mcp_tool(
     arguments: Dict[str, Any] | None,
     *,
     tool_runtime: Dict[str, Any] | None = None,
+    timeout: float = 30.0,
 ) -> Any:
     """Execute a tool on an MCP server."""
     runtime_meta = tool_runtime or {}
@@ -282,7 +306,9 @@ async def call_mcp_tool(
         raise ValueError("MCP runtime missing URL")
 
     try:
-        result = await adapter_call_tool(adapter_url, target_tool_name, args)
+        result = await adapter_call_tool(
+            adapter_url, target_tool_name, args, timeout=timeout
+        )
     except MCPAdapterError as exc:
         logger.error(
             "[MCP] Failed to call tool '%s' on server '%s': %s",
@@ -395,10 +421,17 @@ def call_mcp_tool_sync(
     tool_name: str,
     arguments: Dict[str, Any] | None,
     *,
-    timeout: float | None = 30.0,
+    timeout: float | None = None,
     tool_runtime: Dict[str, Any] | None = None,
 ) -> Any:
-    """Synchronously execute an MCP tool, handling event loop state."""
+    """Synchronously execute an MCP tool, handling event loop state.
+
+    `timeout` defaults to settings.mcp_tool_timeout_seconds and bounds the
+    whole call; a timed-out call is cancelled and raises rather than
+    waiting on the remote server.
+    """
+    if timeout is None:
+        timeout = float(getattr(settings, "mcp_tool_timeout_seconds", 30.0) or 30.0)
     return _run_coro_sync(
         call_mcp_tool(
             server_name,
@@ -406,6 +439,7 @@ def call_mcp_tool_sync(
             tool_name,
             arguments or {},
             tool_runtime=tool_runtime,
+            timeout=timeout,
         ),
         timeout=timeout,
     )

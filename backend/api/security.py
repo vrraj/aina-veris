@@ -41,28 +41,29 @@ def enforce_origin_host(request: Request) -> None:
         return
 
     try:
-        origin_ok = False
-        host_ok = False
-
-        if origin and _ALLOWED_ORIGINS:
-            origin_ok = origin in _ALLOWED_ORIGINS
-
-        if _ALLOWED_HOSTS:
+        if origin:
+            # A browser-supplied Origin/Referer must itself match the
+            # allowlists — a valid Host header must not rescue a forged or
+            # cross-site origin (all header values are client-controlled).
+            origin_ok = bool(_ALLOWED_ORIGINS) and origin in _ALLOWED_ORIGINS
             origin_host = ""
-            if origin:
-                try:
-                    parsed = urlparse(origin)
-                    if parsed.hostname:
-                        origin_host = parsed.hostname
-                        if parsed.port:
-                            origin_host = f"{parsed.hostname}:{parsed.port}"
-                except Exception:
-                    origin_host = ""
-
-            if origin_host and origin_host in _ALLOWED_HOSTS:
-                host_ok = True
-            elif host_hdr and host_hdr in _ALLOWED_HOSTS:
-                host_ok = True
+            try:
+                parsed = urlparse(origin)
+                if parsed.hostname:
+                    origin_host = parsed.hostname
+                    if parsed.port:
+                        origin_host = f"{parsed.hostname}:{parsed.port}"
+            except Exception:
+                origin_host = ""
+            host_ok = bool(_ALLOWED_HOSTS) and bool(origin_host) and (
+                origin_host in _ALLOWED_HOSTS
+            )
+        else:
+            # No Origin (curl/server-to-server/tooling): the Host header is
+            # the only signal. This mainly blocks DNS-rebinding style hits
+            # that arrive with an unexpected Host.
+            origin_ok = False
+            host_ok = not _ALLOWED_HOSTS or host_hdr in _ALLOWED_HOSTS
 
         if not (origin_ok or host_ok):
             logger.warning(

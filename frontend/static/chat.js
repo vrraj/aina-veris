@@ -849,6 +849,130 @@
     }
   }
 
+  // Remove the backend-appended plain-text "Sources:" tail when we render
+  // the structured clickable source list instead.
+  function stripSourcesBlock(text) {
+    return String(text || '').replace(
+      /\n+(?:<sources>)?Sources(?:<\/sources>)?:\s*\n[\s\S]*$/s, ''
+    );
+  }
+
+  // Scroll-to-text fragment (WICG text directives): whole chunk text when
+  // <=8 words, else first-4..last-4 word range. Boundary punctuation is
+  // stripped; a mismatch degrades gracefully to opening the page.
+  function buildTextFragment(text) {
+    const words = String(text || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+      .filter(Boolean);
+    if (!words.length) return '';
+    const enc = (arr) => arr.map(encodeURIComponent).join('%20');
+    if (words.length <= 8) return `text=${enc(words)}`;
+    return `text=${enc(words.slice(0, 4))},${enc(words.slice(-4))}`;
+  }
+
+  // Build a deep link for a source:
+  //  - file:// uploads   -> served copy at /docling-document/{id}#page=N
+  //  - http(s) PDFs      -> url#page=N (built-in viewer jumps to the page)
+  //  - http(s) HTML/wiki -> url[#section-id]:~:text=... (anchor + scroll-to-text)
+  // Returns null only when nothing navigable exists.
+  function buildSourceHref(url, pl) {
+    const raw = String(url || '').trim();
+    const page = (
+      (Array.isArray(pl.page_numbers) && pl.page_numbers[0]) ||
+      (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number) ||
+      pl.page_number
+    );
+    if (/^(file|uploaded):/i.test(raw) && pl.document_id) {
+      const regions = Array.isArray(pl.regions) ? pl.regions : [];
+      const onPage = regions.filter(
+        (r) => r && r.page_number === page && Array.isArray(r.bbox_norm)
+      );
+      if (onPage.length && page) {
+        const boxes = onPage
+          .map((r) => `bbox=${r.bbox_norm.map((n) => Number(n).toFixed(4)).join(',')}`)
+          .join('&');
+        return `/pdf-viewer.html?doc=${encodeURIComponent(pl.document_id)}&page=${page}&${boxes}`;
+      }
+      const base = `/docling-document/${encodeURIComponent(pl.document_id)}`;
+      return page ? `${base}#page=${page}` : base;
+    }
+    if (!/^https?:/i.test(raw)) return null;
+    const isPdf = /\.pdf($|[?#])/i.test(raw) || pl.document_type === 'pdf';
+    if (isPdf) {
+      const base = raw.split('#')[0];
+      return page ? `${base}#page=${page}` : base;
+    }
+    const frag = buildTextFragment(pl.text || pl.display_text);
+    if (!frag) return raw;
+    const hash = raw.indexOf('#');
+    return hash === -1 ? `${raw}#:~:${frag}` : `${raw}:~:${frag}`;
+  }
+
+  // Render a clickable sources list under an assistant bubble.
+  function renderSourceList(bubble, sources) {
+    if (!bubble || !Array.isArray(sources) || !sources.length) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-sources';
+    const title = document.createElement('div');
+    title.className = 'chat-sources-title';
+    title.textContent = 'Sources';
+    wrap.appendChild(title);
+    const list = document.createElement('ul');
+    wrap.appendChild(list);
+
+    sources.forEach((item, i) => {
+      const pl = (item && item.payload) || item || {};
+      const url = String(pl.url || '').trim();
+      const page = (
+        (Array.isArray(pl.page_numbers) && pl.page_numbers[0]) ||
+        (Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].page_number) ||
+        pl.page_number
+      );
+      const section = [pl.section, pl.subsection]
+        .filter((s) => s && s !== 'N/A' && s !== 'null')
+        .join(' > ');
+      const label = pl.citation_label || pl.title || url || `Source ${i + 1}`;
+
+      const li = document.createElement('li');
+      li.className = 'chat-source';
+
+      const href = buildSourceHref(url, pl);
+      const nameEl = href
+        ? Object.assign(document.createElement('a'), {
+            href, target: '_blank', rel: 'noopener noreferrer',
+          })
+        : document.createElement('span');
+      nameEl.className = 'chat-source-link';
+      nameEl.textContent = `[${i + 1}] ${label}`;
+      // Tooltip carries the exact page + normalized region when available.
+      const tip = [];
+      if (url) tip.push(url);
+      if (page) tip.push(`page ${page}`);
+      const region = Array.isArray(pl.regions) && pl.regions[0] && pl.regions[0].bbox_norm;
+      if (region) tip.push(`region [${region.map((n) => Number(n).toFixed(2)).join(', ')}]`);
+      if (!href && url) tip.push('uploaded file — not served over HTTP');
+      nameEl.title = tip.join(' · ');
+      li.appendChild(nameEl);
+
+      const meta = [];
+      if (!pl.citation_label && section) meta.push(section);
+      if (page) meta.push(`p. ${page}`);
+      if (meta.length) {
+        const metaEl = document.createElement('span');
+        metaEl.className = 'chat-source-meta';
+        metaEl.textContent = ` — ${meta.join(' · ')}`;
+        li.appendChild(metaEl);
+      }
+      list.appendChild(li);
+    });
+
+    bubble.appendChild(document.createElement('br'));
+    bubble.appendChild(wrap);
+  }
+
   // Append a message bubble with role badge.
   function appendMessage(role, text, queryId) {
     const wrapper = document.createElement('div');
@@ -1192,6 +1316,10 @@
       if (toolsLineRe.test(displayText)) {
         displayText = displayText.replace(toolsLineRe, '');
       }
+      const hasSources = !!(data && Array.isArray(data.sources) && data.sources.length);
+      if (hasSources) {
+        displayText = stripSourcesBlock(displayText);
+      }
 
       // Clear bubble and render main answer text
       try {
@@ -1224,6 +1352,14 @@
         bubble.appendChild(toggle);
         bubble.appendChild(panel);
       }
+
+      // Render clickable sources (page deep links for PDFs) when provided.
+      // Stash on the bubble so a late SSE final frame can re-render them
+      // after overwriting textContent.
+      try {
+        bubble.__sourcesList = (data && Array.isArray(data.sources)) ? data.sources : [];
+        renderSourceList(bubble, bubble.__sourcesList);
+      } catch (_) {}
 
       // Render tools-used dim line, if provided
       if (data && Array.isArray(data.tools_used) && data.tools_used.length > 0) {
@@ -1783,7 +1919,13 @@ function setupStageStreaming(queryId, bubbleEl) {
             try {
               const finalHtml = payload.finalHtml || payload.final_html || payload.html || '';
               if (finalHtml) setAssistantBubbleHtml(bubble, finalHtml);
-              else if (finalContent) bubble.textContent = finalContent;
+              else if (finalContent) {
+                const stashed = bubble.__sourcesList;
+                bubble.textContent = (stashed && stashed.length)
+                  ? stripSourcesBlock(finalContent)
+                  : finalContent;
+                if (stashed && stashed.length) renderSourceList(bubble, stashed);
+              }
             } catch (e) {
               if (finalContent) bubble.textContent = finalContent;
             }
@@ -1807,7 +1949,11 @@ function setupStageStreaming(queryId, bubbleEl) {
 
         if (payload.final === true || payload.stage === 'Done') {
           if (bubble && typeof payload.finalContent === 'string' && payload.finalContent.length > 0) {
-            bubble.textContent = payload.finalContent;
+            const stashed = bubble.__sourcesList;
+            bubble.textContent = (stashed && stashed.length)
+              ? stripSourcesBlock(payload.finalContent)
+              : payload.finalContent;
+            if (stashed && stashed.length) renderSourceList(bubble, stashed);
           }
           closeAndForget();
           return;

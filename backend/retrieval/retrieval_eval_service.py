@@ -22,7 +22,7 @@ def _idle_timeout() -> int:
     return int(getattr(settings, "model_cache_idle_ttl_seconds", 300))
 
 
-_colbert_cache = TTLModelCache(idle_timeout=_idle_timeout())
+_colbert_cache = TTLModelCache(idle_timeout=_idle_timeout(), label="retrieval")
 
 
 def _get_colbert_model(model_name: str, cache_dir: str):
@@ -36,7 +36,7 @@ def _get_colbert_model(model_name: str, cache_dir: str):
     return _colbert_cache.get(key, _loader)
 
 
-_cross_encoder_cache = TTLModelCache(idle_timeout=_idle_timeout())
+_cross_encoder_cache = TTLModelCache(idle_timeout=_idle_timeout(), label="retrieval")
 
 
 def _get_cross_encoder_model(model_name: str, cache_dir: str):
@@ -117,54 +117,19 @@ class RetrievalEvalService:
         if mode not in {"dense", "sparse", "hybrid"}:
             raise ValueError("search_mode must be one of: dense, sparse, hybrid")
 
-        caps = self.qdrant_db._get_collection_vector_capabilities()
-        effective_mode = mode
-        fallback_reason = None
+        from backend.services.domain_shards import search_shards
 
-        if mode == "hybrid" and not (caps.get("has_dense") and caps.get("has_sparse")):
-            effective_mode = "dense"
-            fallback_reason = "collection_missing_dense_or_sparse"
-        elif mode == "sparse" and not caps.get("has_sparse"):
-            effective_mode = "dense"
-            fallback_reason = "collection_missing_sparse"
-
-        effective_score_threshold = score_threshold if effective_mode == "dense" else None
-
-        if effective_mode == "hybrid":
-            results = self.qdrant_db.search_similar_hybrid(
-                query=query,
-                limit=top_k,
-                score_threshold=effective_score_threshold,
-                query_filter=query_filter,
-                with_payload=with_payload,
-                exact=exact,
-            )
-        elif effective_mode == "sparse":
-            results = self.qdrant_db.search_similar_sparse(
-                query=query,
-                limit=top_k,
-                score_threshold=effective_score_threshold,
-                query_filter=query_filter,
-                with_payload=with_payload,
-                exact=exact,
-            )
-        else:
-            results = self.qdrant_db.search_similar(
-                query=query,
-                limit=top_k,
-                score_threshold=effective_score_threshold,
-                query_filter=query_filter,
-                with_payload=with_payload,
-                exact=exact,
-            )
-
-        return {
-            "results": results,
-            "requested_search_mode": mode,
-            "effective_search_mode": effective_mode,
-            "fallback_reason": fallback_reason,
-            "vector_capabilities": caps,
-        }
+        return search_shards(
+            self.qdrant_db,
+            active_domain=self.domain_meta["requested_domain"],
+            query=query,
+            search_mode=mode,
+            top_k=top_k,
+            score_threshold=score_threshold,
+            query_filter=query_filter,
+            with_payload=with_payload,
+            exact=exact,
+        )
 
     def score_with_colbert(
         self,

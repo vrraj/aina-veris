@@ -138,12 +138,70 @@ def is_local_domain(domain: str) -> bool:
 
 def get_domain_vector_type(domain: str) -> Optional[str]:
     """Get the vector type for a domain.
-    
+
     Args:
         domain: Domain name to check
-    
+
     Returns:
         None (unnamed), "dense", or "hybrid"
     """
     domain_config = settings.DOMAIN_EMBEDDING_CONFIG.get(domain, {})
     return domain_config.get("vector_type")
+
+
+def resolve_model_runtime(model_config: Dict[str, Any], default: str = "fastembed") -> str:
+    """Embedding runtime for a local model config.
+
+    Unified single-pass models declare `emits` plus their own runtime
+    (e.g. BGE-M3 → "bgem3"); all other local models run via fastembed.
+    """
+    cfg = model_config or {}
+    if (cfg.get("emits") or []) and cfg.get("runtime"):
+        return str(cfg["runtime"])
+    return default
+
+
+def resolve_domain_dense_config(embedding_model_key: str) -> Dict[str, Any]:
+    """Dense-side model config for a domain's local model key.
+
+    Falls back to the global dense registry entry when the key is not a
+    resolvable local key.
+    """
+    if str(embedding_model_key).startswith("local:"):
+        try:
+            cfg = get_model_config_by_key(embedding_model_key)
+            if cfg.get("name"):
+                return cfg
+        except Exception:
+            pass
+    return get_model_config("dense")
+
+
+def resolve_domain_sparse_config(embedding_model_key: str) -> Dict[str, Any]:
+    """Sparse model config bound to the domain's embedding model.
+
+    Sparse vectors are vocabulary-bound to the model that produced them: a
+    domain indexed by a unified emits=sparse model (e.g. BGE-M3) must query
+    sparse with that same model. All other domains use the configured
+    SPLADE entry.
+    """
+    if str(embedding_model_key).startswith("local:"):
+        try:
+            cfg = get_model_config_by_key(embedding_model_key)
+            if "sparse" in (cfg.get("emits") or []) and cfg.get("name"):
+                return cfg
+        except Exception:
+            pass
+    return get_model_config("sparse")
+
+
+def build_local_spec_extra(model_config: Dict[str, Any]) -> Dict[str, Any]:
+    """`extra` dict for local EmbeddingSpecs: model cache dir plus the
+    tokenizer max_length declared by unified models (e.g. BGE-M3 8192)."""
+    extra: Dict[str, Any] = {}
+    cache_dir = resolve_local_model_cache_dir(model_config)
+    if cache_dir:
+        extra["cache_dir"] = cache_dir
+    if isinstance(model_config, dict) and model_config.get("max_length"):
+        extra["max_length"] = model_config["max_length"]
+    return extra

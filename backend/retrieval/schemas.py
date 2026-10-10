@@ -14,6 +14,9 @@ class EmbeddingSpec:
     device: str | None = None
     extra: Dict[str, Any] = field(default_factory=dict)
     vector_type: str = "dense"  # "dense" or "sparse"
+    # Vector types a unified single-pass model emits per encode call
+    # (e.g. BGE-M3: ["dense", "sparse"]). Empty for single-output models.
+    emits: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -22,6 +25,10 @@ class EmbeddingResult:
     model: str
     dimensions: int | None
     runtime: str
+    # Sparse outputs from a unified single-pass encode, aligned with `texts`
+    # as {"indices": [...], "values": [...]} dicts. None unless the model
+    # emits sparse alongside dense.
+    sparse_vectors: List[Dict[str, Any]] | None = None
     usage: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
 

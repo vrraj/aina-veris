@@ -92,3 +92,6 @@ models/
 # Temporary files with sensitive data
 1
 ~/
+
+# Docling extraction artifacts (runtime data)
+docling_artifacts/

@@ -37,7 +37,7 @@ function getActiveDomain() {
 }
 
 // Form element references
-let pdfUrlInput, pdfFileInput, pdfMaxChunksInput, pdfSkipSectionsInput, pdfEstimateToggle, pdfForceDelete, pdfIndexBtn, pdfProgress;
+let pdfUrlInput, pdfFileInput, pdfMaxChunksInput, pdfSkipSectionsInput, pdfEstimateToggle, pdfForceDelete, pdfUseDocling, pdfIndexBtn, pdfProgress;
 let mwUrlInput, mwMaxChunksInput, mwSkipSectionsInput, mwApiUrlInput, mwUAInput, mwEstimateToggle, mwForceDelete, mwIndexBtn, mwProgress;
 let htmlUrlInput, htmlMaxChunksInput, htmlSkipSectionsInput, htmlEstimateToggle, htmlForceDelete, htmlIndexBtn, htmlProgress;
 let activeDomainSelect;
@@ -51,6 +51,7 @@ function initializeElements() {
     pdfSkipSectionsInput = document.getElementById('pdfSkipSections');
     pdfEstimateToggle = document.getElementById('pdfEstimateToggle');
     pdfForceDelete = document.getElementById('pdfForceDelete');
+    pdfUseDocling = document.getElementById('pdfUseDocling');
     pdfIndexBtn = document.getElementById('pdfIndexBtn');
     pdfProgress = document.getElementById('pdfProgress');
 
@@ -247,6 +248,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Error during app initialization:', error);
     }
 
+    // Streams /index-pdf-docling/stream and resolves with the final result
+    // payload. Stage events update `pdfProgress` text live (e.g. model
+    // loading during a cold Docling converter build).
+    async function streamDoclingIndex(requestBody) {
+        const resp = await fetch('/index-pdf-docling/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+        });
+        if (!resp.ok) {
+            const t = await resp.text();
+            throw new Error(t || 'Failed to index PDF');
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let result = null;
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            let idx;
+            while ((idx = buffer.indexOf('\n\n')) >= 0) {
+                const frame = buffer.slice(0, idx);
+                buffer = buffer.slice(idx + 2);
+                let event = 'message';
+                const dataLines = [];
+                for (const line of frame.split('\n')) {
+                    if (line.startsWith('event:')) event = line.slice(6).trim();
+                    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+                }
+                if (!dataLines.length) continue;
+                const payload = JSON.parse(dataLines.join('\n'));
+                if (event === 'stage') {
+                    if (pdfProgress) pdfProgress.textContent = payload.message || '';
+                } else if (event === 'result') {
+                    result = payload;
+                } else if (event === 'cancelled') {
+                    throw new Error(payload.detail || 'Indexing cancelled');
+                } else if (event === 'error') {
+                    throw new Error(payload.detail || 'Docling pipeline error');
+                }
+            }
+        }
+        if (result === null) throw new Error('Indexing stream ended without a result');
+        return result;
+    }
+
     // PDF indexing handler
     async function indexPdf() {
         try {
@@ -261,6 +310,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const maxChunks = parseInt(pdfMaxChunksInput?.value || '0', 10) || 0;
             const forceDelete = !!(pdfForceDelete && pdfForceDelete.checked);
             const estimate = !!(pdfEstimateToggle && pdfEstimateToggle.checked);
+            const useDocling = !!(pdfUseDocling && pdfUseDocling.checked);
             const skipRaw = (pdfSkipSectionsInput?.value || '').trim();
             const skipSections = skipRaw ? skipRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined;
 
@@ -296,18 +346,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 skip_sections: skipSections
             };
 
-            const resp = await fetch('/pdf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody),
-            });
-            
-            // Handle non-OK responses
-            if (!resp.ok) {
-                // Check if it's a 409 Conflict (already indexed)
-                if (resp.status === 409) {
-                    const data = await resp.json();
-                    const warningHtml = `
+            let data;
+            if (useDocling) {
+                data = await streamDoclingIndex(requestBody);
+            } else {
+                const resp = await fetch('/pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody),
+                });
+
+                // Handle non-OK responses
+                if (!resp.ok) {
+                    // Check if it's a 409 Conflict (already indexed)
+                    if (resp.status === 409) {
+                        const warnData = await resp.json();
+                        const warningHtml = `
                         <div class="p-3 mb-4 rounded-md bg-yellow-50 border-l-4 border-yellow-400">
                             <div class="flex">
                                 <div class="flex-shrink-0">
@@ -316,24 +370,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     </svg>
                                 </div>
                                 <div class="ml-3 flex items-center space-x-2">
-                                    <p class="text-sm text-yellow-700">${data.message || 'This document has already been indexed'}</p>
+                                    <p class="text-sm text-yellow-700">${warnData.message || 'This document has already been indexed'}</p>
                                     <span class="text-sm text-yellow-600">•</span>
-                                    <p class="text-sm text-yellow-600">${data.hint || 'Use "Force delete existing" to reindex'}</p>
+                                    <p class="text-sm text-yellow-600">${warnData.hint || 'Use "Force delete existing" to reindex'}</p>
                                 </div>
                             </div>
                         </div>
                     `;
-                    if (pdfProgress) {
-                        pdfProgress.insertAdjacentHTML('afterbegin', warningHtml);
+                        if (pdfProgress) {
+                            pdfProgress.insertAdjacentHTML('afterbegin', warningHtml);
+                        }
+                        return;
                     }
-                    return;
+                    // For other errors, throw as before
+                    const t = await resp.text();
+                    throw new Error(t || 'Failed to index PDF');
                 }
-                // For other errors, throw as before
-                const t = await resp.text();
-                throw new Error(t || 'Failed to index PDF');
+
+                data = await resp.json();
             }
-            
-            const data = await resp.json();
             
             // Check for already_indexed flag in successful response (if backend returns it)
             if (data.already_indexed) {
@@ -373,10 +428,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } else {
                 const cost = (data.embedding_cost ?? 0);
+                const count = data.chunks_indexed ?? data.vectors_indexed ?? 0;
+                const countLabel = useDocling ? 'Chunks' : 'Vectors';
+                const elapsed = data.duration_seconds != null ? ` | ${Number(data.duration_seconds).toFixed(1)}s` : '';
                 if (pdfProgress) {
                     pdfProgress.innerHTML = `
                         <div class="font-semibold text-gray-900">
-                            Done. Vectors: ${data.vectors_indexed ?? 0} | Tokens: ${data.tokens_used ?? 0} | Cost: $${Number(cost).toFixed(6)}
+                            Done. ${countLabel}: ${count} | Tokens: ${data.tokens_used ?? 0} | Cost: $${Number(cost).toFixed(6)}${elapsed}
                         </div>
                     `;
                 }

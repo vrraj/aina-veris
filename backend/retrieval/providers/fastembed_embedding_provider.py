@@ -34,8 +34,8 @@ def _get_shared_model_caches() -> Tuple[TTLModelCache, TTLModelCache]:
         if _shared_model_caches is None:
             idle_timeout = _idle_timeout()
             _shared_model_caches = (
-                TTLModelCache(idle_timeout=idle_timeout),
-                TTLModelCache(idle_timeout=idle_timeout),
+                TTLModelCache(idle_timeout=idle_timeout, label="retrieval"),
+                TTLModelCache(idle_timeout=idle_timeout, label="retrieval"),
             )
         return _shared_model_caches
 

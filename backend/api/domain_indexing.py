@@ -14,9 +14,9 @@ from backend.core import settings
 from backend.db import QdrantDB
 from backend.llm.llm_client import get_model_info, get_pricing_for_model
 from backend.retrieval.config import resolve_retrieval_specs
-from backend.retrieval.config_loader import get_model_config, get_model_config_by_key
+from backend.retrieval.config_loader import get_model_config, get_model_config_by_key, resolve_model_runtime
 from backend.retrieval.embedding_router import EmbeddingRouter
-from backend.retrieval.schemas import EmbeddingSpec
+from backend.retrieval.schemas import EmbeddingResult, EmbeddingSpec
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,10 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
     model_type = str(domain_cfg.get("model_type") or "hosted").lower()
     model_key = domain_cfg["embedding_model_key"]
     normalize = emb_cfg.get("normalize", True)
-    batch_size = emb_cfg.get("batch_size", 32)
+    batch_size = (
+        int(getattr(settings, "embed_batch_size_override", 0) or 0)
+        or emb_cfg.get("batch_size", 32)
+    )
     device = emb_cfg.get("device")
     extra = emb_cfg.get("extra") if isinstance(emb_cfg.get("extra"), dict) else {}
 
@@ -110,9 +113,27 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
                 local_model_name = str(resolved_local_cfg.get("name") or model_key)
             except Exception:
                 local_model_name = model_key
-        dimensions = emb_cfg.get("dimensions") or resolved_local_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
+        # A unified single-pass model (e.g. BGE-M3) declares `emits` + its own
+        # runtime in the registry — that overrides the retrieval-spec runtime,
+        # and its declared dimensions are authoritative (a stale retrieval-spec
+        # dim would size the collection wrongly).
+        emits = resolved_local_cfg.get("emits") or []
+        if emits:
+            dimensions = resolved_local_cfg.get("dimensions") or emb_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
+            # Unified models run PyTorch, not ONNX — the retrieval-spec's
+            # `device` (an ONNX-era default, e.g. cpu) must not pin them.
+            # Their own registry `device` wins; absent → provider auto-resolves
+            # mps/cuda/cpu. Same for batch_size and use_fp16.
+            device = resolved_local_cfg.get("device")
+            if resolved_local_cfg.get("batch_size") and not getattr(settings, "embed_batch_size_override", 0):
+                batch_size = int(resolved_local_cfg["batch_size"])
+            if resolved_local_cfg.get("use_fp16") is not None:
+                extra = dict(extra, use_fp16=bool(resolved_local_cfg["use_fp16"]))
+        else:
+            dimensions = emb_cfg.get("dimensions") or resolved_local_cfg.get("dimensions") or local_dense_cfg.get("dimensions")
+        runtime = resolve_model_runtime(resolved_local_cfg, default=emb_cfg.get("runtime", "fastembed"))
         return {
-            "runtime": emb_cfg.get("runtime", "fastembed"),
+            "runtime": runtime,
             "provider": "local",
             "model": local_model_name,
             "dimensions": dimensions,
@@ -120,6 +141,7 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
             "batch_size": batch_size,
             "device": device,
             "extra": extra,
+            "emits": emits,
         }
 
     provider = str(model_key).split(":", 1)[0] if ":" in str(model_key) else "openai"
@@ -143,8 +165,11 @@ def get_embedding_spec_for_domain(active_domain: Optional[str]) -> Dict[str, Any
     }
 
 
-def generate_embeddings_with_retrieval(texts: List[str], active_domain: Optional[str]) -> List[List[float]]:
-    """Generate embeddings using the retrieval module."""
+def generate_embedding_bundle_with_retrieval(
+    texts: List[str], active_domain: Optional[str]
+) -> EmbeddingResult:
+    """Embed via the domain's model; unified models (spec.emits) also fill
+    result.sparse_vectors from the same single encode call."""
     spec_dict = get_embedding_spec_for_domain(active_domain)
     spec = EmbeddingSpec(
         task="embedding",
@@ -156,11 +181,16 @@ def generate_embeddings_with_retrieval(texts: List[str], active_domain: Optional
         batch_size=spec_dict["batch_size"],
         device=spec_dict["device"],
         extra=spec_dict["extra"],
+        emits=list(spec_dict.get("emits") or []),
     )
 
     router = EmbeddingRouter()
-    result = router.embed(texts, spec)
-    return result.vectors
+    return router.embed(texts, spec)
+
+
+def generate_embeddings_with_retrieval(texts: List[str], active_domain: Optional[str]) -> List[List[float]]:
+    """Generate dense embeddings using the retrieval module."""
+    return generate_embedding_bundle_with_retrieval(texts, active_domain).vectors
 
 
 def index_chunks_with_retrieval(
@@ -250,6 +280,23 @@ def index_chunks_with_retrieval(
                 "embedding_provider": spec_dict["provider"],
                 "embedding_runtime": spec_dict["runtime"],
             }
+
+            # Citation fields emitted by extractors (geometry, doc linkage,
+            # page info) — absent keys are simply not stored.
+            for key in (
+                "document_id",
+                "artifact_uri",
+                "page_number",
+                "page_numbers",
+                "regions",
+                "highlight_status",
+                "citation_label",
+                "display_text",
+                "subsubsection",
+            ):
+                val = chunk.get(key) if isinstance(chunk, dict) else None
+                if val is not None:
+                    payload[key] = val
 
             sparse_vector = None
             if has_sparse_vector:

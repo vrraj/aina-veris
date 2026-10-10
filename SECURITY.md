@@ -36,6 +36,7 @@ controls, but they are not authentication or authorization mechanisms.
 | Ingestion | Authenticate callers; authorize the target domain; restrict uploads and fetched URLs; apply size, source, and rate limits; audit indexing activity. |
 | SSE stage streams | Authorize the request or session that owns the `query_id`; do not expose another caller's stream events. |
 | Embedded chat | Use deployment-specific identity or an intentionally controlled public access model; set framing, Origin, and content-security policy. |
+| Configuration write endpoints (`PUT /api/prompt-registry`, `PUT /api/tool-registry`, `PUT /api/retrieval-evals/datasets/{name}`) | These overwrite registry/YAML files that drive runtime behavior. For any deployment beyond localhost, isolate them on a separately bound admin port or loopback interface (e.g. `127.0.0.1:8101`) and/or require authentication. Origin/Host allowlists are a browser-CSRF control only — header values are client-supplied and do not authenticate a caller. |
 
 ## MCP Deployment
 

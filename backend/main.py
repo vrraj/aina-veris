@@ -29,19 +29,26 @@ from backend.core import (
     ChatRequest,
     ChatResponse,
     MediaWikiURLInput,
+    PDFDoclingInput,
     PDFInput,
     URLInput,
     PayloadUpdateRequest,
 )
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Literal, Optional, Any
 from pydantic import BaseModel, Field
 from pydantic import BaseModel, Field
 from backend.chat.chat_manager import ChatManager
 from backend.chat.prompt_registry import clear_prompt_registry_cache
 from backend.tools import get_discovered_mcp_tools, refresh_tool_catalog
-from backend.retrieval.eval_schemas import RetrievalEvalRequest, RetrievalEvalResponse
+from backend.retrieval.eval_schemas import (
+    EvalDatasetPayload,
+    RetrievalEvalRequest,
+    RetrievalEvalResponse,
+    RetrievalEvalRunSetRequest,
+)
 from backend.retrieval.eval_runner import run_retrieval_eval
-from backend.core.config import DomainEmbeddingConfigModel
+from backend.retrieval import eval_datasets as eval_datasets_mod
+from backend.core.config import DomainEmbeddingConfigModel, settings
 from pydantic import BaseModel
 from backend.api.endpoints import model_keys as model_keys_endpoint
 from backend.api.domain_indexing import (
@@ -52,6 +59,12 @@ from backend.api.domain_indexing import (
     strip_fragment_url as _strip_fragment_url,
 )
 from backend.api.security import enforce_origin_host
+from backend.services.domain_shards import (
+    count_document_in_shards as _count_document_in_shards,
+    delete_document_from_shards as _delete_document_from_shards,
+)
+from backend.services.domain_shards import search_shards as _search_shards
+from backend.services.domain_shards import map_shards as _map_shards
 from backend.services.collection_admin import (
     CollectionNotFoundError,
     list_collections as _list_collections,
@@ -91,7 +104,22 @@ async def app_lifespan(app: FastAPI):
     async with mcp_lifespan(app):
         result = await asyncio.to_thread(refresh_tool_catalog)
         logger.info("[TOOLS] startup_catalog_warmup tool_count=%d", len(result["tools"]))
+        _start_docling_warmup()
         yield
+
+
+def _start_docling_warmup() -> None:
+    """Kick off Docling model download in the background, if enabled."""
+    if not getattr(settings, "pdf_docling_enabled", True):
+        return
+    if not getattr(settings, "pdf_docling_warmup_on_startup", True):
+        return
+    from backend.extractor.docling_pdf_extractor import prewarm_models
+
+    task = asyncio.create_task(asyncio.to_thread(prewarm_models))
+    task.add_done_callback(
+        lambda t: t.exception() and logger.error("Docling warm-up task failed: %s", t.exception())
+    )
 
 
 app = FastAPI(
@@ -121,6 +149,19 @@ except Exception as _e:
 
 # Expose backend model registry for frontend consumption
 app.include_router(model_keys_endpoint.router, tags=["3. Search & Chat"])
+
+# Additive Docling PDF ingestion pipeline (writes to its own Qdrant collection)
+from backend.api.endpoints import pdf_docling as pdf_docling_endpoint  # noqa: E402
+
+app.include_router(pdf_docling_endpoint.router)
+
+# Model cache admin (inspect / eject / reload in-memory models)
+from backend.api.endpoints import model_cache_admin as model_cache_admin_endpoint  # noqa: E402
+# Runtime-tunable configuration (Veris Configuration page)
+from backend.api.endpoints import runtime_config_admin as runtime_config_admin_endpoint  # noqa: E402
+
+app.include_router(model_cache_admin_endpoint.router)
+app.include_router(runtime_config_admin_endpoint.router)
 
 # Configure static file serving
 # This allows the frontend to be served from the same server as the API
@@ -288,6 +329,14 @@ async def list_docs_data(limit: int = None, url: str = None, active_domain: Opti
             embedding_model_key=domain_cfg["embedding_model_key"],
         )
         
+        # Shard-aware: list documents across all the domain's existing shards
+        from backend.services.domain_shards import resolve_domain_shards, existing_shard_names
+
+        domain_shards_list = [s.name for s in resolve_domain_shards(active_domain)]
+        if len(domain_shards_list) > 1:
+            _existing = existing_shard_names(domain_shards_list)
+            domain_shards_list = [n for n in domain_shards_list if n in _existing]
+
         # Create filter if URL is provided
         scroll_filter = None
         if url:
@@ -301,51 +350,54 @@ async def list_docs_data(limit: int = None, url: str = None, active_domain: Opti
                 ]
             )
 
-        # Attempt a simple scroll to fetch documents; best-effort approach
-        offset = None
-        while True:
-            try:
-                # The underlying client.scroll returns (points, next_offset)
-                resp = qd.client.scroll(
-                    collection_name=qd.collection_name,
-                    offset=offset,
-                    limit=100,
-                    scroll_filter=scroll_filter
-                )
-                if isinstance(resp, tuple) and len(resp) == 2:
-                    points, offset = resp
-                else:
-                    points = resp
+        for shard_name in domain_shards_list:
+            view = qd if shard_name == qd.collection_name else qd.for_collection(shard_name)
+            # Attempt a simple scroll to fetch documents; best-effort approach
+            offset = None
+            while True:
+                try:
+                    # The underlying client.scroll returns (points, next_offset)
+                    resp = view.client.scroll(
+                        collection_name=view.collection_name,
+                        offset=offset,
+                        limit=100,
+                        scroll_filter=scroll_filter
+                    )
+                    if isinstance(resp, tuple) and len(resp) == 2:
+                        points, offset = resp
+                    else:
+                        points = resp
+                        offset = None
+                except TypeError:
+                    # Fallback if the client returns a different structure
+                    points = []
                     offset = None
-            except TypeError:
-                # Fallback if the client returns a different structure
-                points = []
-                offset = None
 
-            if not isinstance(points, list):
-                points = list(points)
+                if not isinstance(points, list):
+                    points = list(points)
 
-            for p in points:
-                payload = getattr(p, 'payload', {}) or {}
-                base_url = payload.get('base_url') or payload.get('url')
-                title = payload.get('title') or ''
-                # total_chunks: prefer explicit field, else infer from a chunks list
-                total_chunks = payload.get('total_chunks')
-                if total_chunks is None:
-                    chunks = payload.get('chunks') or []
-                    total_chunks = len(chunks)
-                updated_at = payload.get('updated_at', '') or ''
-                if base_url:
-                    # Only add if URL matches (case-insensitive) or no URL filter
-                    if not url or (isinstance(base_url, str) and url.lower() in base_url.lower()):
-                        data['documents'].append({
-                            'base_url': base_url,
-                            'title': title,
-                            'total_chunks': int(total_chunks) if total_chunks is not None else 0,
-                            'updated_at': updated_at,
-                        })
-            if not offset:
-                break
+                for p in points:
+                    payload = getattr(p, 'payload', {}) or {}
+                    base_url = payload.get('base_url') or payload.get('url')
+                    title = payload.get('title') or ''
+                    # total_chunks: prefer explicit field, else infer from a chunks list
+                    total_chunks = payload.get('total_chunks')
+                    if total_chunks is None:
+                        chunks = payload.get('chunks') or []
+                        total_chunks = len(chunks)
+                    updated_at = payload.get('updated_at', '') or ''
+                    if base_url:
+                        # Only add if URL matches (case-insensitive) or no URL filter
+                        if not url or (isinstance(base_url, str) and url.lower() in base_url.lower()):
+                            data['documents'].append({
+                                'base_url': base_url,
+                                'title': title,
+                                'total_chunks': int(total_chunks) if total_chunks is not None else 0,
+                                'updated_at': updated_at,
+                                'collection': shard_name,
+                            })
+                if not offset:
+                    break
         # Respect the limit at display time; the UI will slice, and the download will provide full data
         if limit is not None and limit > 0:
             data['documents'] = data['documents'][:limit]
@@ -382,6 +434,24 @@ async def process_batch_docs_page():
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
     return FileResponse(os.path.join(frontend_dir, "process-batch-docs.html"))
 
+@app.get(
+    "/models.html",
+    include_in_schema=False  # UI page; not part of API docs
+)
+async def models_page():
+    """Serve the model-cache management page."""
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+    return FileResponse(os.path.join(frontend_dir, "models.html"))
+
+@app.get(
+    "/veris-config.html",
+    include_in_schema=False  # UI page; not part of API docs
+)
+async def veris_config_page():
+    """Serve the runtime configuration page."""
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+    return FileResponse(os.path.join(frontend_dir, "veris-config.html"))
+
 # Chat page route (HTML)
 @app.get(
     "/ask.html",
@@ -394,6 +464,19 @@ async def chat_page():
     """Serve the standalone chat page"""
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
     return FileResponse(os.path.join(frontend_dir, "ask.html"))
+
+
+# PDF source viewer route (HTML)
+@app.get(
+    "/pdf-viewer.html",
+    tags=["1. UI Pages"],
+    summary="PDF source viewer with region highlight (HTML)",
+    response_class=HTMLResponse,
+)
+async def pdf_viewer_page():
+    """Serve the PDF viewer page used for clickable source citations."""
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+    return FileResponse(os.path.join(frontend_dir, "pdf-viewer.html"))
 
 
 @app.get(
@@ -622,6 +705,32 @@ async def index_pdf(
             elif existing_count > 0 and bool(pdf_input.force_delete):
                 logger.info("force_delete=true; proceeding with reindex")
         
+        # Exclusive write: a document may live in only one shard of a domain.
+        # If it exists in another shard (e.g. the Docling collection), refuse
+        # unless force_delete is set, in which case index here and retire the
+        # other shard's points after a successful write.
+        other_shards: Dict[str, int] = {}
+        if bool(settings.check_document_indexed) and not pdf_input.estimate:
+            try:
+                other_shards = _count_document_in_shards(
+                    pdf_input.active_domain,
+                    source,
+                    exclude_shard=domain_cfg["collection_name"],
+                )
+            except Exception as e:
+                logger.warning("Cross-shard duplicate check failed for %s: %s", source, e)
+            if other_shards and not bool(pdf_input.force_delete):
+                return {
+                    "message": "Document already indexed via a different pipeline",
+                    "url": source,
+                    "already_indexed": True,
+                    "existing_collection": ", ".join(sorted(other_shards)),
+                    "vectors_found": int(sum(other_shards.values())),
+                    "confirmation_required": True,
+                    "hint": "Resubmit with 'Force delete existing' checked to migrate this document to the legacy PDF pipeline",
+                }
+
+        pdf_bytes: Optional[bytes] = None
         extractor = PDFExtractor(
             chunk_size=settings.html_chunk_size,
             chunk_overlap=settings.html_chunk_overlap,
@@ -640,6 +749,7 @@ async def index_pdf(
             import hashlib
             try:
                 file_data = base64.b64decode(pdf_input.file)
+                pdf_bytes = file_data
                 
                 # Generate a unique hash of the file content for duplicate checking
                 file_hash = hashlib.sha256(file_data).hexdigest()
@@ -681,8 +791,9 @@ async def index_pdf(
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Invalid file data: {str(e)}")
         else:
-            # Handle URL
-            chunks = extractor.parse_from_url(pdf_input.url)
+            # Handle URL — fetch once so we can persist the exact bytes indexed.
+            pdf_bytes = extractor.fetch_bytes(pdf_input.url)
+            chunks = extractor.parse_from_bytes(pdf_bytes, pdf_input.url)
             
         if pdf_input.max_chunks is not None and pdf_input.max_chunks > 0:
             chunks = chunks[:pdf_input.max_chunks]
@@ -709,19 +820,56 @@ async def index_pdf(
                 "embedding_cost": round(estimated_cost, 8)
             }
 
+        # Persist the exact bytes being indexed so file:// (and uploaded://)
+        # citations can be served back through /docling-document/{id} and
+        # highlighted in the PDF viewer — same store as the Docling path.
+        if pdf_bytes:
+            from backend.extractor.docling_pdf_extractor import (
+                compute_document_id,
+                save_source_pdf,
+            )
+
+            document_id = compute_document_id(pdf_bytes)
+            artifact_uri = f"internal://documents/{document_id}"
+            for c in chunks:
+                if isinstance(c, dict):
+                    c["document_id"] = document_id
+                    c["artifact_uri"] = artifact_uri
+            try:
+                save_source_pdf(
+                    pdf_bytes,
+                    document_id,
+                    getattr(settings, "pdf_docling_artifact_dir", None),
+                )
+            except Exception as exc:
+                # Best-effort: citations degrade to page links if the copy fails.
+                logger.warning("Could not persist source PDF for %s: %s", source, exc)
+
         result = _index_chunks_with_retrieval(
             chunks,
             active_domain=pdf_input.active_domain,
             force_delete=pdf_input.force_delete,
             max_chunks=pdf_input.max_chunks,
         )
-        
+
+        migrated_from: Dict[str, int] = {}
+        if other_shards:
+            # force_delete was set and the new points are written; retire the
+            # other shard's points to complete the pipeline migration.
+            try:
+                migrated_from = _delete_document_from_shards(
+                    source, list(other_shards.keys())
+                )
+            except Exception as e:
+                logger.exception("Failed to retire prior-shard points for %s: %s", source, e)
+
         rate_per_mm = _get_embedding_rate_per_mm_tokens()
         embedding_cost = (result.get("tokens_used", 0) * rate_per_mm) / 1_000_000.0
         return {
             "message": "PDF content indexed successfully",
             "chunks_indexed": len(chunks),
             "vectors_indexed": result.get("vectors_indexed", 0),
+            "migrated_from_collections": migrated_from,
             "tokens_used": result.get("tokens_used", 0),
             "embedding_cost": round(embedding_cost, 8),
             "source": source,
@@ -1181,58 +1329,28 @@ async def search_content(search_request: SearchRequest):
             search_mode = str(search_request.search_mode or "dense").strip().lower()
             if search_mode not in {"dense", "hybrid", "sparse"}:
                 raise HTTPException(status_code=400, detail="search_mode must be one of: dense, hybrid, sparse")
-            effective_score_threshold = score_threshold if search_mode == "dense" else None
-            requested_search_mode = search_mode
-            effective_search_mode = search_mode
-            fallback_reason = None
 
-            try:
-                caps = qdrant_db._get_collection_vector_capabilities()
-            except Exception:
-                caps = {"has_dense": True, "has_sparse": False}
-
-            if search_mode == "hybrid" and not (caps.get("has_dense") and caps.get("has_sparse")):
-                effective_search_mode = "dense"
-                fallback_reason = "collection_missing_dense_or_sparse"
-            elif search_mode == "sparse" and not caps.get("has_sparse"):
-                effective_search_mode = "dense"
-                fallback_reason = "collection_missing_sparse"
-            
-            # Use QdrantDB directly for search mode selection.
-            if effective_search_mode == "hybrid":
-                results = qdrant_db.search_similar_hybrid(
-                    query=search_request.query,
-                    limit=search_request.limit,
-                    query_filter=qdrant_filter,
-                    score_threshold=effective_score_threshold,
-                    exact=exact,
-                    with_payload=with_payload,
-                )
-            elif effective_search_mode == "sparse":
-                results = qdrant_db.search_similar_sparse(
-                    query=search_request.query,
-                    limit=search_request.limit,
-                    query_filter=qdrant_filter,
-                    score_threshold=effective_score_threshold,
-                    exact=exact,
-                    with_payload=with_payload,
-                )
-            else:
-                results = qdrant_db.search_similar(
-                    query=search_request.query,
-                    limit=search_request.limit,
-                    query_filter=qdrant_filter,
-                    score_threshold=effective_score_threshold,
-                    exact=exact,
-                    with_payload=with_payload
-                )
+            # Shared multi-shard search: resolves the mode per shard's vector
+            # layout and RRF-merges multi-shard candidates.
+            shard_result = _search_shards(
+                qdrant_db,
+                active_domain=search_request.active_domain,
+                query=search_request.query,
+                search_mode=search_mode,
+                top_k=search_request.limit,
+                score_threshold=score_threshold,
+                query_filter=qdrant_filter,
+                with_payload=with_payload,
+                exact=exact,
+            )
+            results = shard_result["results"]
             logger.debug("Search results count: %d", len(results))
             return SearchResponse(
                 results=results,
                 total=len(results),
-                requested_search_mode=requested_search_mode,
-                effective_search_mode=effective_search_mode,
-                fallback_reason=fallback_reason,
+                requested_search_mode=shard_result["requested_search_mode"],
+                effective_search_mode=shard_result["effective_search_mode"],
+                fallback_reason=shard_result["fallback_reason"],
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1252,6 +1370,100 @@ async def run_retrieval_evals(eval_request: RetrievalEvalRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Labeled dataset evaluation (evals/ YAML store + batch run-set) ---
+
+
+@app.get(
+    "/api/retrieval-evals/datasets",
+    tags=["3. Search & Chat"],
+    summary="List retrieval eval datasets",
+)
+async def list_eval_datasets():
+    return {"datasets": eval_datasets_mod.list_datasets()}
+
+
+@app.get(
+    "/api/retrieval-evals/datasets/{name}",
+    tags=["3. Search & Chat"],
+    summary="Read a retrieval eval dataset",
+)
+async def get_eval_dataset(name: str):
+    try:
+        return eval_datasets_mod.load_dataset(name)
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.put(
+    "/api/retrieval-evals/datasets/{name}",
+    tags=["3. Search & Chat"],
+    summary="Create or update a retrieval eval dataset",
+)
+async def put_eval_dataset(name: str, payload: EvalDatasetPayload, request: Request):
+    enforce_origin_host(request)
+    try:
+        return eval_datasets_mod.save_dataset(name, payload.model_dump())
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete(
+    "/api/retrieval-evals/datasets/{name}",
+    tags=["3. Search & Chat"],
+    summary="Delete a retrieval eval dataset",
+)
+async def delete_eval_dataset(name: str, request: Request):
+    enforce_origin_host(request)
+    try:
+        return eval_datasets_mod.delete_dataset(name)
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post(
+    "/api/retrieval-evals/run-set",
+    tags=["3. Search & Chat"],
+    summary="Run a labeled eval dataset against one or more domains",
+)
+async def run_eval_set_endpoint(run_request: RetrievalEvalRunSetRequest):
+    try:
+        dataset = eval_datasets_mod.load_dataset(run_request.dataset)
+    except eval_datasets_mod.EvalDatasetError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    retrieval_knobs = {
+        "split_compound_queries": run_request.split_compound_queries,
+        "max_compound_queries": run_request.max_compound_queries,
+        "search_mode": run_request.search_mode,
+        "top_k": run_request.top_k,
+        "score_threshold": run_request.score_threshold,
+        "query_filter": run_request.query_filter,
+        "with_payload": True,
+        "exact": run_request.exact,
+        "use_colbert": run_request.use_colbert,
+        "colbert_top_n": run_request.colbert_top_n,
+        "enable_cross_encoder_rerank": run_request.enable_cross_encoder_rerank,
+        "cross_encoder_top_n": run_request.cross_encoder_top_n,
+        "ensure_subquery_coverage": run_request.ensure_subquery_coverage,
+        "min_results_per_subquery": run_request.min_results_per_subquery,
+        "coverage_max_reserved": run_request.coverage_max_reserved,
+    }
+    try:
+        result = await asyncio.to_thread(
+            eval_datasets_mod.run_eval_set,
+            dataset,
+            domains=run_request.domains,
+            retrieval_knobs=retrieval_knobs,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    result["payload_echo"] = run_request.model_dump()
+    return result
+
 
 @app.post("/chat", tags=["3. Search & Chat"], summary="5. Chat (stateless)")
 async def chat_with_content(chat_request: ChatRequest, request: Request):
@@ -1308,8 +1520,16 @@ async def delete_document(url: str, active_domain: Optional[str] = None):
     domain_cfg = _resolve_domain_config(active_domain)
     embeddings_manager = EmbeddingsManager(active_domain=domain_cfg["effective_domain"])
     try:
-        embeddings_manager.delete_document(url)
-        return {"message": "Document deleted successfully"}
+        deleted = _map_shards(
+            embeddings_manager.qdrant_db,
+            active_domain,
+            lambda view: view.delete_by_url(url),
+        )
+        return {
+            "message": "Document deleted successfully",
+            "deleted_points": int(sum(deleted.values())),
+            "per_collection": deleted,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1596,8 +1816,16 @@ def delete_preview(
     qdrant_db = _build_domain_qdrant(active_domain)
     try:
         base = _strip_fragment_url(url)
-        total = qdrant_db.count_points_by_base_url(base)
-        sample_chunks = qdrant_db.get_chunks_by_base_url(base, limit=sample_limit)
+        totals = _map_shards(
+            qdrant_db, active_domain, lambda view: view.count_points_by_base_url(base)
+        )
+        samples = _map_shards(
+            qdrant_db,
+            active_domain,
+            lambda view: view.get_chunks_by_base_url(base, limit=sample_limit),
+        )
+        sample_chunks = [chunk for chunks in samples.values() for chunk in chunks]
+        sample_chunks = sample_chunks[:sample_limit]
         # Optionally, keep sample payloads smaller by trimming long text fields
         max_text_chars = int(getattr(settings, "debug_log_truncate_chars", 500))
         for ch in sample_chunks:
@@ -1611,7 +1839,8 @@ def delete_preview(
             "input_url": url,
             "base_url": base,
             "base_url_lower": (base or "").lower(),
-            "total_chunks": int(total),
+            "total_chunks": int(sum(totals.values())),
+            "per_collection": totals,
             "sample_limit": int(sample_limit),
             "sample_chunks": sample_chunks,
         }
@@ -1638,11 +1867,14 @@ def delete_by_base_url(request: DeleteByBaseURLRequest, http_request: Request):
         if not base:
             raise HTTPException(status_code=400, detail="Either url or base_url must be provided")
 
-        deleted = qdrant_db.delete_by_base_url(base)
+        deleted = _map_shards(
+            qdrant_db, request.active_domain, lambda view: view.delete_by_base_url(base)
+        )
         return {
             "base_url": base,
             "base_url_lower": (base or "").lower(),
-            "deleted_points": int(deleted),
+            "deleted_points": int(sum(deleted.values())),
+            "per_collection": deleted,
         }
     except HTTPException:
         raise
@@ -2445,6 +2677,7 @@ class BatchURLItem(BaseModel):
     active_domain: Optional[str] = None
     user_agent: Optional[str] = None
     api_url: Optional[str] = None  # For MediaWiki API URL override
+    pipeline: Optional[Literal["pymupdf", "docling"]] = None  # pdf only; falls back to request.pipeline
 
 class BatchRequest(BaseModel):
     """Request model for batch processing documents"""
@@ -2454,6 +2687,7 @@ class BatchRequest(BaseModel):
     force_delete: bool = False
     filename: Optional[str] = None
     active_domain: Optional[str] = None
+    pipeline: Literal["pymupdf", "docling"] = "pymupdf"  # default pipeline for pdf items
 
 from fastapi.responses import StreamingResponse, JSONResponse
 import json
@@ -2463,10 +2697,11 @@ from typing import List, Dict
 import aiohttp
 from fastapi import HTTPException
 
-async def process_item(item, request, settings):
+async def process_item(item, batch_request, request, settings):
     try:
         # Handle local file paths for PDFs
         logger.info(f"Processing item: {item.url}")
+        pdf_pipeline = item.pipeline or batch_request.pipeline
         if item.doc_type.lower() == 'pdf' and item.url.startswith('file://'):
             # Turn "file:///app/data/..." into "/app/data/..."
             parsed = urlsplit(item.url)          # scheme=file, path=/app/...
@@ -2478,11 +2713,11 @@ async def process_item(item, request, settings):
                 with open(file_path, 'rb') as f:
                     files = {'file': (os.path.basename(file_path), f, 'application/pdf')}
                     form_data = {
-                        'estimate': str(request.estimate).lower(),
-                        'force_delete': str(request.force_delete).lower()
+                        'estimate': str(batch_request.estimate).lower(),
+                        'force_delete': str(batch_request.force_delete).lower()
                     }
-                    if request.max_chunks is not None:
-                        form_data['max_chunks'] = str(request.max_chunks)
+                    if batch_request.max_chunks is not None:
+                        form_data['max_chunks'] = str(batch_request.max_chunks)
                     
                     # Make an internal request to the /pdf endpoint
                     async with aiohttp.ClientSession() as session:
@@ -2495,19 +2730,22 @@ async def process_item(item, request, settings):
                         # Create JSON payload with base64-encoded file
                         payload = {
                             'file': file_b64,
-                            'estimate': request.estimate,
-                            'force_delete': request.force_delete,
-                            'active_domain': item.active_domain or request.active_domain,
+                            'estimate': batch_request.estimate,
+                            'force_delete': batch_request.force_delete,
+                            'active_domain': item.active_domain or batch_request.active_domain,
                             'url': item.url,
                             'filename': os.path.basename(file_path)
                         }
-                        if request.max_chunks is not None:
-                            payload['max_chunks'] = request.max_chunks
-                            
+                        if batch_request.max_chunks is not None:
+                            payload['max_chunks'] = batch_request.max_chunks
+                        if pdf_pipeline == 'docling':
+                            payload['skip_sections'] = item.skip_sections
+
                         # Using default FastAPI port for local development
+                        endpoint = '/index-pdf-docling' if pdf_pipeline == 'docling' else '/pdf'
                         headers = {'Content-Type': 'application/json'}
                         async with session.post(
-                            'http://localhost:8000/pdf',
+                            f'http://localhost:8000{endpoint}',
                             json=payload,
                             headers=headers
                         ) as response:
@@ -2531,22 +2769,33 @@ async def process_item(item, request, settings):
         
         # Route based on doc_type for non-file URLs
         if item.doc_type.lower() == 'pdf':
-            input_data = PDFInput(
-                url=item.url,
-                max_chunks=request.max_chunks,
-                force_delete=request.force_delete,
-                active_domain=item.active_domain or request.active_domain,
-                estimate=request.estimate
-            )
-            handler = index_pdf
+            if pdf_pipeline == 'docling':
+                input_data = PDFDoclingInput(
+                    url=item.url,
+                    max_chunks=batch_request.max_chunks or 0,
+                    force_delete=batch_request.force_delete,
+                    active_domain=item.active_domain or batch_request.active_domain,
+                    estimate=batch_request.estimate,
+                    skip_sections=item.skip_sections
+                )
+                handler = pdf_docling_endpoint.index_pdf_docling
+            else:
+                input_data = PDFInput(
+                    url=item.url,
+                    max_chunks=batch_request.max_chunks,
+                    force_delete=batch_request.force_delete,
+                    active_domain=item.active_domain or batch_request.active_domain,
+                    estimate=batch_request.estimate
+                )
+                handler = index_pdf
             
         elif item.doc_type.lower() == 'mediawiki':
             input_data = MediaWikiURLInput(
                 url=item.url,
-                max_chunks=request.max_chunks,
-                force_delete=request.force_delete,
-                active_domain=item.active_domain or request.active_domain,
-                estimate=request.estimate
+                max_chunks=batch_request.max_chunks,
+                force_delete=batch_request.force_delete,
+                active_domain=item.active_domain or batch_request.active_domain,
+                estimate=batch_request.estimate
             )
             handler = index_mediawiki_url
             
@@ -2554,17 +2803,17 @@ async def process_item(item, request, settings):
             input_data = URLInput(
                 urls=[item.url],
                 doc_type='html',
-                max_chunks=request.max_chunks,
-                force_delete=request.force_delete,
-                active_domain=item.active_domain or request.active_domain,
-                estimate=request.estimate,
+                max_chunks=batch_request.max_chunks,
+                force_delete=batch_request.force_delete,
+                active_domain=item.active_domain or batch_request.active_domain,
+                estimate=batch_request.estimate,
                 skip_sections=item.skip_sections,
                 user_agent=item.user_agent or settings.default_user_agent
             )
             handler = index_content
         
-        # Process the document
-        response = await handler(input_data)
+        # Process the document (all handlers take (input, request))
+        response = await handler(input_data, request)
         
         return {
             "url": item.url,
@@ -2627,7 +2876,7 @@ async def batch_process_docs(batch_request: BatchRequest, request: Request):
             }) + "\n"
             
             # Process the item
-            result = await process_item(item, request, settings)
+            result = await process_item(item, batch_request, request, settings)
             
             # Update totals
             if result.get('status') == 'success' and 'result' in result:

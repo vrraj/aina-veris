@@ -8,8 +8,13 @@ description: "Domain-aware research runtime with A2A, MCP, configurable retrieva
 
 **Domain-aware research runtime for agents, applications, and tool-assisted RAG.**
 
-Aina-Veris combines domain-specific knowledge with configurable retrieval,
-tools, models, and prompts in a shared research runtime.
+Aina-Veris is a **reference architecture** for building domain-aware research
+capabilities. It combines domain-specific knowledge with configurable
+retrieval, tools, models, and prompts in a shared research runtime.
+
+It is an adaptable foundation for deployment-specific research environments,
+with identity, authorization, operational, and security controls provided by
+each deployment.
 
 Research can be accessed through **A2A, MCP, REST/OpenAPI, the Web UI, and
 embeddable chat**.
@@ -159,6 +164,21 @@ Human operators can use the included workspace to configure domains, prompts,
 models, and tools; inspect pipeline execution; test research behavior; and
 evaluate retrieval independently of answer generation.
 
+### Accelerated document intelligence
+
+Aina-Veris can use available GPU acceleration to process complex PDF corpora
+faster. The Docling ingestion path performs layout-aware extraction, OCR,
+table reconstruction, figure handling, and provenance-preserving chunking
+before content enters a domain knowledge base.
+
+Linux deployments with NVIDIA CUDA can accelerate Docling processing and
+supported local embedding, sparse-retrieval, and reranking models. Native and
+hybrid Apple Silicon deployments can use MPS and CoreML where supported;
+CPU-only deployment remains available. This acceleration applies to document
+processing and local model stages, not a claim that all Qdrant search operations
+run on a GPU. See [Deployment Architecture](DEPLOYMENT_ARCHITECTURE.md) for
+the supported deployment paths and configuration.
+
 ### Better coverage for multi-part questions
 
 When a question has several parts, Aina-Veris can split it into smaller
@@ -251,8 +271,11 @@ overall conversation.
 
 <p align="center"><em>Source material is processed into domain-specific knowledge for the shared research runtime.</em></p>
 
-Domain configuration chooses the collection, embedding path, vector type, and
-retrieval policy. See [Domain configuration and ingestion](configuration.md).
+Domain configuration chooses the collection — or a shard set when the domain
+spans multiple ingestion pipelines — plus the embedding path, vector type, and
+retrieval policy. Search fans out across a domain's shards and merges results
+with reciprocal-rank fusion. See
+[Domain configuration and ingestion](configuration.md).
 
 The **Aina-Veris Web UI** is the operator workspace for administering and
 querying domain knowledge. It supports PDF, MediaWiki, HTML, and batch
@@ -290,6 +313,7 @@ configuration into the research runtime.
 ## Guides
 
 - Add a domain or ingest source material: [Configuration and ingestion](configuration.md)
+- Ingest technical PDFs with the Docling pipeline, or span a domain across multiple pipeline shards: [RAG indexing and citation strategy](../RAG_INDEXING_AND_CITATION_STRATEGY.md)
 - Publish a domain as an agent: [A2A research agents](a2a.md)
 - Expose or consume MCP tools: [MCP integration](mcp_specs.md) · [Tool registry](tool_registry.md)
 - Call REST, follow SSE stages, or embed chat: [API surfaces](api-reference.md) · [SSE](server-sent-events.md) · [Embeddable chat](embedded-chat.md)

@@ -50,7 +50,7 @@ def test_bar_chart_type_uses_bar_renderer():
 def test_chart_type_is_not_forwarded_to_mcp(monkeypatch):
     captured = {}
 
-    async def fake_adapter_call(url, name, arguments):
+    async def fake_adapter_call(url, name, arguments, timeout=None):
         captured.update(url=url, name=name, arguments=arguments)
         return {
             "structuredContent": {
