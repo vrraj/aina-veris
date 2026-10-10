@@ -20,6 +20,28 @@ function badge(ok, yesLabel, noLabel) {
   return `<span class="badge ${ok ? 'badge-ok' : 'badge-off'}">${ok ? yesLabel : noLabel}</span>`;
 }
 
+const ROLE_CHIP_STYLE = {
+  indexing: 'background:#dbeafe;color:#1e40af;',
+  inference: 'background:#ede9fe;color:#5b21b6;',
+};
+
+function roleChip(role) {
+  const style = ROLE_CHIP_STYLE[role] || 'background:#f3f4f6;color:#6b7280;';
+  return `<span class="badge" style="${style}">${role}</span>`;
+}
+
+function accelChips(accelerators) {
+  if (!accelerators || !accelerators.length) return '<span class="text-gray-400">—</span>';
+  return accelerators.map((a) => {
+    const short = String(a).replace('ExecutionProvider', '');
+    const gpu = /CoreML|CUDA|Tensorrt|ROCM|MPS|XPU/i.test(a);
+    const cls = gpu
+      ? 'background:#dcfce7;color:#166534;'
+      : 'background:#f3f4f6;color:#6b7280;';
+    return `<span class="badge" style="${cls}">${short}</span>`;
+  }).join(' ');
+}
+
 async function post(url, body) {
   const resp = await fetch(url, {
     method: 'POST',
@@ -45,7 +67,7 @@ function render(data) {
     card.className = 'bg-white rounded-lg shadow p-4';
     const rows = c.models.map((m) => `
       <tr class="border-t">
-        <td class="py-2 pr-4 mono model-key text-sm">${m.key}</td>
+        <td class="py-2 pr-4 mono model-key text-sm font-semibold text-gray-900">${m.key}</td>
         <td class="py-2 pr-4 text-sm whitespace-nowrap text-right">idle ${fmtIdle(m.idle_secs)}</td>
         <td class="py-2 pr-2 text-right">
           <button class="action-btn" data-act="reload" data-cache="${c.name}" data-key="${m.key}">Reload</button>
@@ -84,6 +106,7 @@ function render(data) {
       <thead>
         <tr class="text-left text-xs text-gray-500">
           <th class="pb-2 pr-4">kind</th><th class="pb-2 pr-4">model</th>
+          <th class="pb-2 pr-4">used for</th><th class="pb-2 pr-4">accel</th>
           <th class="pb-2 pr-4">enabled</th><th class="pb-2 pr-4">on disk</th>
           <th class="pb-2 pr-4">in memory</th><th class="pb-2 pr-4">cache dir</th>
           <th class="pb-2"></th>
@@ -91,9 +114,15 @@ function render(data) {
       </thead>
       <tbody>
         ${data.local_models.map((m) => `
-          <tr class="border-t text-sm">
+          <tr class="border-t text-sm"
+              title="${(m.domains || []).length ? 'used by: ' + m.domains.join(', ') : 'not referenced by any domain'}">
             <td class="py-2 pr-4">${m.kind}</td>
-            <td class="py-2 pr-4 mono model-key">${m.name || '—'}</td>
+            <td class="py-2 pr-4 mono model-key font-semibold text-gray-900">${m.name || '—'}</td>
+            <td class="py-2 pr-4">${(m.roles || []).map(roleChip).join(' ')}
+              ${(m.domains || []).length
+                ? `<span class="text-xs text-gray-400">×${m.domains.length}</span>`
+                : `<span class="text-xs text-gray-300">${(m.roles || []).includes('indexing') ? 'unused' : 'on-demand'}</span>`}</td>
+            <td class="py-2 pr-4">${accelChips(m.accelerator)}</td>
             <td class="py-2 pr-4">${badge(m.enabled, 'yes', 'no')}</td>
             <td class="py-2 pr-4">${badge(m.on_disk, 'local', 'not found')}</td>
             <td class="py-2 pr-4">${badge(m.in_memory, 'memory', 'cold')}</td>
