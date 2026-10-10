@@ -9,11 +9,16 @@
 a2a-sdk==1.1.2
     # via -r requirements.txt
 accelerate==1.15.0
-    # via docling-slim
+    # via
+    #   docling-slim
+    #   flagembedding
+    #   peft
 aiofiles==23.2.1
     # via -r requirements.txt
 aiohttp==3.9.1
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   fsspec
 aiologic==0.17.1
     # via culsans
 aiosignal==1.4.0
@@ -70,6 +75,8 @@ click==8.5.0
     #   huggingface-hub
     #   python-oxmsg
     #   uvicorn
+cloudpickle==3.1.2
+    # via joblib
 coloredlogs==15.0.1
     # via onnxruntime
 colorlog==6.12.0
@@ -84,12 +91,18 @@ cryptography==50.0.1
     #   pyjwt
 culsans==0.11.0
     # via a2a-sdk
+datasets==5.1.0
+    # via flagembedding
 dateparser==1.4.3
     # via htmldate
 defusedxml==0.7.1
     # via
     #   docling-core
     #   docling-slim
+dill==0.4.1
+    # via
+    #   datasets
+    #   multiprocess
 distro==1.9.0
     # via
     #   google-genai
@@ -125,18 +138,22 @@ fastembed==0.8.0
     #   qdrant-client
 filelock==4.0.4
     # via
+    #   datasets
     #   huggingface-hub
     #   torch
 filetype==1.2.0
     # via docling-slim
+flagembedding==1.4.2
+    # via -r requirements.txt
 flatbuffers==25.12.19
     # via onnxruntime
 frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-fsspec==2026.9.0
+fsspec==2026.7.0
     # via
+    #   datasets
     #   huggingface-hub
     #   torch
 google-api-core==2.39.0
@@ -191,9 +208,12 @@ httpx2==2.13.1
 huggingface-hub==1.33.0
     # via
     #   accelerate
+    #   datasets
     #   docling-ibm-models
     #   docling-slim
     #   fastembed
+    #   peft
+    #   sentence-transformers
     #   tokenizers
     #   transformers
 humanfriendly==10.0
@@ -209,12 +229,16 @@ idna==3.20
     #   yarl
 iniconfig==2.3.0
     # via pytest
+ir-datasets==0.6.3
+    # via flagembedding
 jinja2==3.1.3
     # via
     #   -r requirements.txt
     #   torch
 jiter==0.17.0
     # via openai
+joblib==1.6.0
+    # via scikit-learn
 json-rpc==1.15.0
     # via a2a-sdk
 jsonpatch==1.33
@@ -245,6 +269,7 @@ lxml==5.4.0
     # via
     #   doclang
     #   htmldate
+    #   ir-datasets
     #   justext
     #   lxml-html-clean
     #   python-docx
@@ -254,6 +279,8 @@ lxml-html-clean==0.4.4
     # via
     #   -r requirements.txt
     #   lxml
+lz4==4.4.5
+    # via ir-datasets
 mail-parser==4.6.5
     # via docling-slim
 markdown==3.6
@@ -283,6 +310,8 @@ multidict==6.9.1
     # via
     #   aiohttp
     #   yarl
+multiprocess==0.70.19
+    # via datasets
 mwparserfromhell==0.6.5
     # via -r requirements.txt
 networkx==3.4.2
@@ -292,16 +321,21 @@ networkx==3.4.2
 numpy==2.2.6
     # via
     #   accelerate
+    #   datasets
     #   docling-ibm-models
     #   docling-slim
     #   fastembed
+    #   ir-datasets
     #   onnxruntime
     #   opencv-python
     #   pandas
+    #   peft
     #   pymupdf-layout
     #   qdrant-client
     #   rapidocr
+    #   scikit-learn
     #   scipy
+    #   sentence-transformers
     #   shapely
     #   torchvision
     #   transformers
@@ -332,14 +366,20 @@ packaging==25.0
     # via
     #   a2a-sdk
     #   accelerate
+    #   datasets
     #   huggingface-hub
     #   langchain-core
     #   langsmith
     #   onnxruntime
+    #   peft
     #   pytest
     #   transformers
 pandas==2.3.3
-    # via docling-core
+    # via
+    #   datasets
+    #   docling-core
+peft==0.21.2
+    # via flagembedding
 pillow==12.3.0
     # via
     #   docling-core
@@ -367,6 +407,7 @@ proto-plus==1.28.4
 protobuf==6.33.6
     # via
     #   a2a-sdk
+    #   flagembedding
     #   google-api-core
     #   googleapis-common-protos
     #   onnxruntime
@@ -375,9 +416,12 @@ protobuf==6.33.6
 psutil==7.2.2
     # via
     #   accelerate
+    #   peft
     #   pymupdf4llm
 py-rust-stemmers==0.1.8
     # via fastembed
+pyarrow==25.0.1
+    # via datasets
 pyasn1==0.6.4
     # via pyasn1-modules
 pyasn1-modules==0.4.2
@@ -462,10 +506,13 @@ pyyaml==6.0.1
     # via
     #   -r requirements.txt
     #   accelerate
+    #   datasets
     #   docling-core
     #   huggingface-hub
+    #   ir-datasets
     #   langchain-core
     #   omegaconf
+    #   peft
     #   pymupdf-layout
     #   rapidocr
     #   transformers
@@ -490,6 +537,7 @@ requests==2.34.2
     #   google-api-core
     #   google-auth
     #   google-genai
+    #   ir-datasets
     #   langsmith
     #   rapidocr
     #   requests-toolbelt
@@ -510,9 +558,19 @@ safetensors==0.8.0
     # via
     #   accelerate
     #   docling-ibm-models
+    #   peft
     #   transformers
+scikit-learn==1.7.2
+    # via sentence-transformers
 scipy==1.15.3
-    # via docling-slim
+    # via
+    #   docling-slim
+    #   scikit-learn
+    #   sentence-transformers
+sentence-transformers==6.1.0
+    # via flagembedding
+sentencepiece==0.2.2
+    # via flagembedding
 shapely==2.1.2
     # via rapidocr
 shellingham==1.5.4
@@ -552,6 +610,8 @@ tenacity==9.1.4
     # via
     #   google-genai
     #   langchain-core
+threadpoolctl==3.7.0
+    # via scikit-learn
 tiktoken==0.5.2
     # via -r requirements.txt
 timeseries-sparklines==0.1.2
@@ -561,6 +621,7 @@ tld==0.13.2
 tokenizers==0.23.2
     # via
     #   fastembed
+    #   sentence-transformers
     #   transformers
 tomli==2.4.1
     # via
@@ -571,7 +632,10 @@ torch==2.14.0+cpu
     #   accelerate
     #   docling-ibm-models
     #   docling-slim
+    #   flagembedding
+    #   peft
     #   safetensors
+    #   sentence-transformers
     #   torchvision
 torchvision==0.29.0+cpu
     # via
@@ -579,16 +643,24 @@ torchvision==0.29.0+cpu
     #   docling-slim
 tqdm==4.70.1
     # via
+    #   datasets
     #   docling-slim
     #   fastembed
     #   huggingface-hub
+    #   ir-datasets
     #   openai
+    #   peft
     #   rapidocr
+    #   sentence-transformers
     #   transformers
 trafilatura==1.12.2
     # via -r requirements.txt
 transformers==5.17.0
-    # via docling-ibm-models
+    # via
+    #   docling-ibm-models
+    #   flagembedding
+    #   peft
+    #   sentence-transformers
 truststore==0.10.4
     # via
     #   httpcore2
@@ -629,6 +701,7 @@ typing-extensions==4.16.0
     #   python-oxmsg
     #   python-pptx
     #   referencing
+    #   sentence-transformers
     #   torch
     #   typing-inspection
     #   uvicorn
@@ -656,7 +729,7 @@ uvicorn==0.32.1
     # via
     #   -r requirements.txt
     #   mcp
-vrraj-llm-adapter==1.0.5
+vrraj-llm-adapter==1.1.0
     # via -r requirements.txt
 webencodings==0.6.1
     # via bleach
@@ -670,7 +743,9 @@ wrapt==2.5.0
 xlsxwriter==3.2.9
     # via python-pptx
 xxhash==4.0.1
-    # via langsmith
+    # via
+    #   datasets
+    #   langsmith
 yarl==1.25.1
     # via aiohttp
 zstandard==0.25.0

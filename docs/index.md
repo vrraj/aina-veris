@@ -8,8 +8,13 @@ description: "Domain-aware research runtime with A2A, MCP, configurable retrieva
 
 **Domain-aware research runtime for agents, applications, and tool-assisted RAG.**
 
-Aina-Veris combines domain-specific knowledge with configurable retrieval,
-tools, models, and prompts in a shared research runtime.
+Aina-Veris is a **reference architecture** for building domain-aware research
+capabilities. It combines domain-specific knowledge with configurable
+retrieval, tools, models, and prompts in a shared research runtime.
+
+It is an adaptable foundation for deployment-specific research environments,
+with identity, authorization, operational, and security controls provided by
+each deployment.
 
 Research can be accessed through **A2A, MCP, REST/OpenAPI, the Web UI, and
 embeddable chat**.

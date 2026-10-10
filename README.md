@@ -6,9 +6,14 @@
 
 **Domain-Aware Research with A2A, MCP, and Configurable Retrieval**
 
-Aina-Veris combines domain-specific knowledge with configurable retrieval,
-tools, models, and prompts in a shared research runtime for **AI agents and
-applications**.
+Aina-Veris is a **reference architecture** for building domain-aware research
+capabilities for **AI agents and applications**. It combines domain-specific
+knowledge with configurable retrieval, tools, models, and prompts in a shared
+research runtime.
+
+It is intended as an adaptable foundation for deployment-specific research
+environments, with identity, authorization, operational, and security controls
+provided by each deployment.
 
 [Install Aina-Veris →](#quick-start)
 
